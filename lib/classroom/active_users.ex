@@ -13,6 +13,10 @@ defmodule Classroom.ActiveUsers do
     GenServer.call(__MODULE__, {:logout, self()})
   end
 
+  def find_user_by_pid(pid) do # {:ok, name} | :error
+    GenServer.call(__MODULE__, {:find_user_by_pid, pid})
+  end
+
   @impl true
   def init(_args) do
     {:ok, []}
@@ -32,6 +36,15 @@ defmodule Classroom.ActiveUsers do
   @impl true
   def handle_call({:logout, pid}, _from, users) do
     {:reply, :ok, remove_user(users, pid)}
+  end
+
+  @impl true
+  def handle_call({:find_user_by_pid, pid}, _from, users) do
+    IO.puts(:reach)
+    case users |> Enum.find(fn {_key, val, _} -> val == pid end) do
+      nil -> {:reply, :error, users}
+      {name, _, _} -> {:reply, {:ok, name}, users}
+    end
   end
 
   @impl true

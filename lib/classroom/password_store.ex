@@ -10,12 +10,16 @@ defmodule Classroom.PasswordStore do
     GenServer.call(__MODULE__, {:check_password, username, password})
   end
 
-  def register(data) do
-    GenServer.call(__MODULE__, {:register, data})
+  def register(username, password) do
+    GenServer.call(__MODULE__, {:register, username, password})
   end
 
   def unregister() do
     GenServer.call(__MODULE__, {:unregister, self()})
+  end
+
+  def has_user?(username) do
+    GenServer.call(__MODULE__, {:find_user, username})
   end
 
   def init(users) do
@@ -35,10 +39,17 @@ defmodule Classroom.PasswordStore do
     end
   end
 
-  def handle_call({:register, username, password}, _from, users) do
+  def handle_call({:register, username, password}, _from, users) do # TODO hash password
     case Map.has_key?(users, username) do
-      true -> {:reply, :ok, Map.put(users, username, password)}
-      false -> {:reply, :error, users}
+      false -> {:reply, :ok, Map.put(users, username, password)}
+      true -> {:reply, :error, users}
+    end
+  end
+
+  def handle_call({:find_user, username}, _from, users) do
+    case users |> Map.has_key?(username) do
+      true -> {:reply, :ok}
+      false -> {:reply, :error}
     end
   end
 

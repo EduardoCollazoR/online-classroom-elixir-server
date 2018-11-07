@@ -26,10 +26,10 @@ defmodule Classroom do
     )
 
     children = [
-      {Classroom.PasswordStore, users: %{"foo" => "password"}},
+      {Classroom.PasswordStore, users: %{"dev" => "dev", "dev2" => "dev2"}},
       Classroom.ActiveUsers,
       #      Classroom.Whiteboard,
-      Classroom.ClassList
+      {Classroom.ClassStore, classes: []},
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one)

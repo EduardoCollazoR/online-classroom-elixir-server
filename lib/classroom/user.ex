@@ -1,21 +1,22 @@
 defmodule Classroom.User do
   # init: receive welcome message
-  # handle: login
-  # handle: register
-  # handle: draw (u)
-  # handle: chat (u)
-  # handle: select classroom (u)
-  # update: classroom
-  # update: message
-  # update: draw
-
-  # Problems:
-  # json attr atom?
-
-  # API doc
-  # register: %{type:"register", data: %{name, user_data: %{(login), pw, nickname, registered_class: []}}
-  # login: %{type:"login", data: %{name, pw}}
   #
+  # handle:
+  #   login (g)                   {"type":"login","username":"herbert","password":"123"}
+  #   register (g)                {"type":"register","username":"herbert","password":"123", nickname}
+  #   logout (u)                  {"type":"logout"}
+  #   draw (u)
+  #   chat (u)
+  #   get created class (u)       {"type":"get_created_class"}
+  #   get subscribed class (u)
+  #   select classroom (u)
+  #   create classroom (u)        {"type":"create_class","name_of_class": name_of_class}
+  #   start classroom (u+owner)
+  #
+  # update:
+  #   classroom (u)
+  #   message (u)
+  #   draw (u)
 
   require Logger
 
@@ -66,59 +67,72 @@ defmodule Classroom.User do
   end
 
   # return value: {:ok, state} | {:reply, json(), state} | {:stop, state}
-  def handle_in(%{"type" => "login", "username" => user, "password" => pass}, state = %{identity: :guest}) do
-    case Classroom.PasswordStore.valid_password?(user, pass) do
+  def handle_in(
+        %{"type" => "login", "username" => name, "password" => pass},
+        state = %{identity: :guest}
+      ) do
+    case Classroom.PasswordStore.valid_password?(name, pass) do
       true ->
-        Logger.debug("Login: #{user} login success")
-        :ok = Classroom.ActiveUsers.login(user)
-        {:reply, %{type: :login_success}, %{identity: user}}
+        Logger.debug("Login: #{name} login success")
+        :ok = Classroom.ActiveUsers.login(name)
+        {:reply, %{type: :login_success}, %{identity: :user}}
 
       false ->
-        Logger.debug("Login: #{user} login failed")
+        Logger.debug("Login: #{name} login failed")
         {:reply, %{type: :login_failed}, state}
     end
   end
 
-  def handle_in(%{"type" => "logout", "data" => data}, %{identity: :user}) do
-    result = Classroom.UserList.login(data)
-    Logger.debug("Logout#{result}")
-    {:reply, %{type: :validate_logout, data: result}, %{identity: :guest}}
+  # remove self() from active_user
+  def handle_in(%{"type" => "logout"}, %{identity: :user}) do
+    case Classroom.ActiveUsers.logout() do
+      :ok ->
+        Logger.debug("Logout: #{inspect(self())} logout success")
+        {:reply, %{type: :logout_success}, %{identity: :guest}}
+    end
   end
 
-  def handle_in(%{"type" => "register", "data" => data}, state = %{identity: :guest}) do
-    result = Classroom.UserList.register(data)
-    Logger.debug("Register #{result}")
-    {:reply, %{type: :validate_register, data: result}, state}
+  def handle_in(
+        %{"type" => "register", "username" => user, "password" => pass},
+        state = %{identity: :guest}
+      ) do
+    case Classroom.PasswordStore.register(user, pass) do
+      :ok ->
+        Logger.debug("Register: #{user} register success")
+        {:reply, %{type: :register_success}, state}
+
+      :error ->
+        Logger.debug("Register: #{user} register failed")
+        {:reply, %{type: :register_failed}, state}
+    end
   end
 
-  def handle_in(%{"type" => "chat", "data" => _}, state = %{identity: :guest}) do
-    Logger.debug("Guest attempts to send message")
-    {:stop, state}
-  end
-
-  def handle_in(%{"type" => "chat", "data" => data}, state) do
+  def handle_in(%{"type" => "chat", "data" => data}, state = %{identity: :user}) do
     Logger.debug("Received chat data #{data}")
     {:ok, state}
   end
 
-  def handle_in(%{"type" => "draw", "data" => _}, state = %{identity: :guest}) do
-    Logger.debug("Guest attempts to draw")
-    {:stop, state}
-  end
-
-  def handle_in(%{"type" => "draw", "data" => data}, state) do
+  def handle_in(%{"type" => "draw", "data" => data}, state = %{identity: :user}) do
     Logger.debug("Received draw data #{data}")
     {:ok, state}
   end
 
-  def handle_in(%{"type" => "create_class", "data" => data}, state) do
-    Logger.debug("Received create_class data #{data}")
-    result = Classroom.ClassList.created_class()
-    {:reply, %{type: :validate_create_class, data: result}, state}
+  def handle_in(%{"type" => "create_class", "name_of_class" => name_of_class}, state = %{identity: :user}) do
+    Logger.debug("Received create_class of class_name #{name_of_class}")
+    case Classroom.ClassStore.created_class(name_of_class) do
+      :ok -> {:reply, %{type: :create_class_success}, state}
+      :error -> {:reply, %{type: :create_class_failed}, state}
+    end
+  end
+
+  def handle_in(%{"type" => "get_created_class"}, state = %{identity: :user}) do
+    Logger.debug("Received get_created_class")
+    {:reply, %{type: :get_created_class, created_classes: Classroom.ClassStore.get_created_class()}, state}
   end
 
   def handle_in(_, state) do
     Logger.debug("Unexpected action")
-    {:stop, state}
+    # {:stop, state}
+    {:reply, %{type: :unexpected}, state}
   end
 end

@@ -2,7 +2,7 @@
              [{applications,[kernel,stdlib,elixir,logger,poison,cowboy]},
               {description,"classroom"},
               {modules,['Elixir.Classroom','Elixir.Classroom.ActiveUsers',
-                        'Elixir.Classroom.ClassList',
+                        'Elixir.Classroom.ClassStore',
                         'Elixir.Classroom.PasswordStore',
                         'Elixir.Classroom.User','Elixir.Classroom.Whiteboard',
                         'Elixir.Classroom.Whiteboard.Registry']},
