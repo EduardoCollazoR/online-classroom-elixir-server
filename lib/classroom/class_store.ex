@@ -15,8 +15,8 @@ defmodule Classroom.ClassStore do
     GenServer.call(__MODULE__, {:destroy_class, self()})
   end
 
-  def subscribe(name_of_class) do
-    GenServer.call(__MODULE__, {:subscribe, name_of_class})
+  def subscribe(owner, name_of_class) do
+    GenServer.call(__MODULE__, {:subscribe, self(), owner, name_of_class})
   end
 
   def unsubscribe(name_of_class) do
@@ -32,39 +32,30 @@ defmodule Classroom.ClassStore do
   end
 
   def init(classes) do # TODO change state format
-    # %{ "teacher": %{created_class: [class_name,],} }
     # [ %{name_of_class, owner, subscriber: []} ]
     {:ok, classes}
   end
 
-  # def handle_call({:old_created_class, pid, name_of_class}, _from, classes) do # not in list with same teacher
-  #   # Map put(info, :room_id, Ecto.UUID.generate())
-  #   {:ok, owner} =  Classroom.ActiveUsers.find_user_by_pid(pid)
-  #   case classes[owner] do
-  #     nil -> {:reply, :ok, classes |> Map.put(owner, [name_of_class])}
-  #     list ->
-  #       case list |> Enum.member?(name_of_class) do
-  #         true -> {:reply, :error, classes}
-  #         false ->
-  #           {:reply, :ok, classes |> Map.replace!(owner, [name_of_class | list])}
-  #       end
-  #   end
-  # end
-
   def handle_call({:create_class, pid, name_of_class}, _from, classes) do # need class id as diff teacher can hv classes with name
     {:ok, owner} =  Classroom.ActiveUsers.find_user_by_pid(pid)
-    IO.inspect classes |> Enum.find(fn %{name: name, owner: o} -> name == name_of_class and o == owner end)
     case classes |> Enum.find(fn %{name: name, owner: o} -> name == name_of_class && o == owner end) do
       nil -> {:reply, :ok, [%{name: name_of_class, owner: owner, subscriber: []} | classes]}
       _ -> {:reply, :error, classes}
     end
   end
 
-  def handle_call({:subscribe, %{:room_id => room_id}}, _from, classes) do # require teacher's & class's name
-    case classes |> Enum.find(fn {_, val} -> val == room_id end) do
+  def handle_call({:subscribe, pid, owner, class_name}, _from, classes) do # TODO owner cannot subscribe
+    case classes |> Enum.find(fn %{name: name, owner: o} -> name == class_name && o == owner end) do
       # TODO change user's location
-      {_, _} -> {:reply, :ok, classes}
       nil -> {:reply, :error, classes}
+      _ ->
+        {:ok, subscriber} =  Classroom.ActiveUsers.find_user_by_pid(pid)
+        {:reply,
+          :ok,
+          classes |> Enum.map(fn class ->
+            Map.update!(class, :subscriber, fn list -> [ subscriber | list] end)
+          end)
+        }
     end
   end
 

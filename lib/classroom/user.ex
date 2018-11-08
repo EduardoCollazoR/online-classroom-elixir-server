@@ -12,6 +12,7 @@ defmodule Classroom.User do
   #   select classroom (u)
   #   create classroom (u)        {"type":"create_class","name_of_class": name_of_class}
   #   start classroom (u+owner)
+  #   destroy classroom (u+owner)
   #
   # update:
   #   classroom (u)
@@ -28,6 +29,7 @@ defmodule Classroom.User do
 
   # return value: {:ok, state} | {:reply, {:text, string()}, state} | {:stop, state}
   def websocket_init(_params) do
+    Logger.debug("A client has connected #{inspect self()}")
     json = %{type: :init, data: "Welcome, your pid is #{inspect(self())}"}
     {:reply, {:text, Poison.encode!(json)}, %{identity: :guest, at: :no, user_data: %{}}}
   end
@@ -95,7 +97,8 @@ defmodule Classroom.User do
   def handle_in(
         %{"type" => "register", "username" => user, "password" => pass},
         state = %{identity: :guest}
-      ) do
+      )
+      when is_binary(user) and is_binary(user) and byte_size(user) <= 20 and byte_size(pass) <= 20 do
     case Classroom.PasswordStore.register(user, pass) do
       :ok ->
         Logger.debug("Register: #{user} register success")
@@ -107,7 +110,8 @@ defmodule Classroom.User do
     end
   end
 
-  def handle_in(%{"type" => "chat", "data" => data}, state = %{identity: :user}) do
+  def handle_in(%{"type" => "chat", "data" => data}, state = %{identity: :user})
+      when is_binary(data) and is_binary(data) and byte_size(data) <= 20 and byte_size(data) <= 20 do
     Logger.debug("Received chat data #{data}")
     {:ok, state}
   end
@@ -117,8 +121,12 @@ defmodule Classroom.User do
     {:ok, state}
   end
 
-  def handle_in(%{"type" => "create_class", "name_of_class" => name_of_class}, state = %{identity: :user}) do
+  def handle_in(
+        %{"type" => "create_class", "name_of_class" => name_of_class},
+        state = %{identity: :user}
+      ) do
     Logger.debug("Received create_class of class_name #{name_of_class}")
+
     case Classroom.ClassStore.created_class(name_of_class) do
       :ok -> {:reply, %{type: :create_class_success}, state}
       :error -> {:reply, %{type: :create_class_failed}, state}
@@ -127,7 +135,10 @@ defmodule Classroom.User do
 
   def handle_in(%{"type" => "get_created_class"}, state = %{identity: :user}) do
     Logger.debug("Received get_created_class")
-    {:reply, %{type: :get_created_class, created_classes: Classroom.ClassStore.get_created_class()}, state}
+
+    {:reply,
+     %{type: :get_created_class, created_classes: Classroom.ClassStore.get_created_class()},
+     state}
   end
 
   def handle_in(_, state) do

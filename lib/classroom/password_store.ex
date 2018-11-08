@@ -1,9 +1,8 @@
 defmodule Classroom.PasswordStore do
   use GenServer
 
-  def start_link(args) do
-    users = Keyword.get(args, :users, %{})
-    GenServer.start_link(__MODULE__, users, name: __MODULE__, debug: [:trace]) # debug: [:trace]
+  def start_link(_args) do
+    GenServer.start_link(__MODULE__, nil, name: __MODULE__, debug: [:trace]) # debug: [:trace]
   end
 
   def valid_password?(username, password) do
@@ -22,39 +21,45 @@ defmodule Classroom.PasswordStore do
     GenServer.call(__MODULE__, {:find_user, username})
   end
 
-  def init(users) do
-    {:ok, users}
+  def init(_args) do
+    {:ok, _} = :dets.open_file(__MODULE__, file: 'password.dets')
+    {:ok, nil}
   end
 
-  def handle_call({:check_password, username, password}, _from, users) do
-    case Map.fetch(users, username) do
-      {:ok, ^password} ->
-        {:reply, true, users}
+  def handle_call({:check_password, username, password}, _from, nil) do
+    case :dets.lookup(__MODULE__, username) do
+      [{_, ^password}] ->
+        {:reply, true, nil}
 
-      {:ok, _wrong_password} ->
-        {:reply, false, users}
+      [{_, _wrong_password}] ->
+        {:reply, false, nil}
 
-      :error ->
-        {:reply, false, users}
+      [] ->
+        {:reply, false, nil}
     end
   end
 
-  def handle_call({:register, username, password}, _from, users) do # TODO hash password
-    case Map.has_key?(users, username) do
-      false -> {:reply, :ok, Map.put(users, username, password)}
-      true -> {:reply, :error, users}
+  def handle_call({:register, username, password}, _from, nil) do # TODO hash password
+    case :dets.lookup(__MODULE__, username) do
+      [] ->
+        :ok = :dets.insert(__MODULE__, {username, password})
+        {:reply, :ok, nil}
+
+      [_record] ->
+        {:reply, :error, nil}
     end
   end
 
-  def handle_call({:find_user, username}, _from, users) do
-    case users |> Map.has_key?(username) do
-      true -> {:reply, :ok}
-      false -> {:reply, :error}
+  def handle_call({:find_user, username}, _from, nil) do
+    case :dets.lookup(__MODULE__, username) do
+      [_record] -> {:reply, :ok, nil}
+      [] -> {:reply, :error, nil}
     end
   end
 
-  def handle_call({:unregister, username}, _from, users) do
-    {:reply, :ok, Map.delete(users, username)}
+  def handle_call({:unregister, username}, _from, nil) do
+    :dets.delete(__MODULE__, username)
+    {:reply, nil, nil}
   end
 
 end
