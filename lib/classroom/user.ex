@@ -7,12 +7,18 @@ defmodule Classroom.User do
   #   logout (u)                  {"type":"logout"}
   #   draw (u)
   #   chat (u)
-  #   get created class (u)       {"type":"get_created_class"}
-  #   get subscribed class (u)
-  #   select classroom (u)
+  #
   #   create classroom (u)        {"type":"create_class","name_of_class": name_of_class}
-  #   start classroom (u+owner)
+  #   get created class (u)       {"type":"get_created_class"}
   #   destroy classroom (u+owner)
+  #
+  #   subscribe classroom (u)     {"type":"subscribe_class", "owner": owner,"class_name": class_name}
+  #   get subscribed class (u)    {"type":"get_subscribed_class"}
+  #   unsubscribe classroom (u)   {"type":"unsubscribe_class", "owner": owner,"class_name": class_name}
+  #
+  #   start classroom (u+owner)
+  #   join classroom (u)
+  #   leave classroom (u)
   #
   # update:
   #   classroom (u)
@@ -29,7 +35,7 @@ defmodule Classroom.User do
 
   # return value: {:ok, state} | {:reply, {:text, string()}, state} | {:stop, state}
   def websocket_init(_params) do
-    Logger.debug("A client has connected #{inspect self()}")
+    Logger.debug("A client has connected #{inspect(self())}")
     json = %{type: :init, data: "Welcome, your pid is #{inspect(self())}"}
     {:reply, {:text, Poison.encode!(json)}, %{identity: :guest, at: :no, user_data: %{}}}
   end
@@ -128,8 +134,37 @@ defmodule Classroom.User do
     Logger.debug("Received create_class of class_name #{name_of_class}")
 
     case Classroom.ClassStore.created_class(name_of_class) do
-      :ok -> {:reply, %{type: :create_class_success}, state}
-      :error -> {:reply, %{type: :create_class_failed}, state}
+      :ok ->
+        {_, self_name} = Classroom.ActiveUsers.find_user_by_pid(self())
+        :ok = Classroom.ClassStore.subscribe(self_name, name_of_class)
+        {:reply, %{type: :create_class_success}, state}
+
+      :error ->
+        {:reply, %{type: :create_class_failed}, state}
+    end
+  end
+
+  def handle_in(
+        %{"type" => "subscribe_class", "owner" => owner, "class_name" => class_name},
+        state = %{identity: :user}
+      ) do
+    Logger.debug("Received subscribe_class of class_name #{class_name}")
+
+    case Classroom.ClassStore.subscribe(owner, class_name) do
+      :ok -> {:reply, %{type: "subscribed #{owner}'s #{class_name} success"}, state}
+      :error -> {:reply, %{type: "subscribed #{owner}'s #{class_name} failed"}, state}
+    end
+  end
+
+  def handle_in(
+        %{"type" => "unsubscribe_class", "owner" => owner, "class_name" => class_name},
+        state = %{identity: :user}
+      ) do
+    Logger.debug("Received subscribe_class of class_name #{class_name}")
+
+    case Classroom.ClassStore.unsubscribe(owner, class_name) do
+      :ok -> {:reply, %{type: "unsubscribed #{owner}'s #{class_name} success"}, state}
+      :error -> {:reply, %{type: "unsubscribed #{owner}'s #{class_name} failed"}, state}
     end
   end
 
@@ -139,6 +174,16 @@ defmodule Classroom.User do
     {:reply,
      %{type: :get_created_class, created_classes: Classroom.ClassStore.get_created_class()},
      state}
+  end
+
+  def handle_in(%{"type" => "get_subscribed_class"}, state = %{identity: :user}) do
+    Logger.debug("Received get_subscribed_clas")
+
+    {:reply,
+     %{
+       type: :get_subscribed_class,
+       subscribed_classes: Classroom.ClassStore.get_subscribed_class()
+     }, state}
   end
 
   def handle_in(_, state) do

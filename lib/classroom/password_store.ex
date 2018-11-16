@@ -2,7 +2,8 @@ defmodule Classroom.PasswordStore do
   use GenServer
 
   def start_link(_args) do
-    GenServer.start_link(__MODULE__, nil, name: __MODULE__, debug: [:trace]) # debug: [:trace]
+    # debug: [:trace]
+    GenServer.start_link(__MODULE__, nil, name: __MODULE__, debug: [:trace])
   end
 
   def valid_password?(username, password) do
@@ -39,7 +40,8 @@ defmodule Classroom.PasswordStore do
     end
   end
 
-  def handle_call({:register, username, password}, _from, nil) do # TODO hash password
+  # TODO hash password
+  def handle_call({:register, username, password}, _from, nil) do
     case :dets.lookup(__MODULE__, username) do
       [] ->
         :ok = :dets.insert(__MODULE__, {username, password})
@@ -61,5 +63,4 @@ defmodule Classroom.PasswordStore do
     :dets.delete(__MODULE__, username)
     {:reply, nil, nil}
   end
-
 end

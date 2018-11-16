@@ -1,0 +1,11 @@
+{application,classroom,
+             [{applications,[kernel,stdlib,elixir,logger,poison,cowboy,gun]},
+              {description,"classroom"},
+              {modules,['Elixir.Classroom','Elixir.Classroom.ActiveUsers',
+                        'Elixir.Classroom.ClassStore',
+                        'Elixir.Classroom.PasswordStore',
+                        'Elixir.Classroom.User','Elixir.Classroom.Whiteboard',
+                        'Elixir.Classroom.Whiteboard.Registry']},
+              {registered,[]},
+              {vsn,"0.1.0"},
+              {mod,{'Elixir.Classroom',[]}}]}.
