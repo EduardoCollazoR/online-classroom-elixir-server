@@ -8,7 +8,7 @@ defmodule Classroom.User do
   #   draw (u)
   #   chat (u)
   #
-  #   create classroom (u)        {"type":"create_class","name_of_class": name_of_class}
+  #   create classroom (u)        {"type":"create_class","class_name": class_name}
   #   get created class (u)       {"type":"get_created_class"}
   #   destroy classroom (u+owner)
   #
@@ -16,9 +16,10 @@ defmodule Classroom.User do
   #   get subscribed class (u)    {"type":"get_subscribed_class"}
   #   unsubscribe classroom (u)   {"type":"unsubscribe_class", "owner": owner,"class_name": class_name}
   #
-  #   start classroom (u+owner)
-  #   join classroom (u)
-  #   leave classroom (u)
+  #   start classroom (u+owner)   {"type": "start_class", "class_name": class_name}
+  #   pause classroom (u+owner)
+  #   join classroom (u)          {"type": "join_class", "owner": "dev", "class_name": "class"}
+  #   leave classroom (u)         {"type": "leave_class", "owner": "dev", "class_name": "class"}
   #
   # update:
   #   classroom (u)
@@ -83,7 +84,7 @@ defmodule Classroom.User do
       true ->
         Logger.debug("Login: #{name} login success")
         :ok = Classroom.ActiveUsers.login(name)
-        {:reply, %{type: :login_success}, %{identity: :user}}
+        {:reply, %{type: :login_success}, Map.update!(state, :identity, fn _ -> :user end)}
 
       false ->
         Logger.debug("Login: #{name} login failed")
@@ -92,11 +93,11 @@ defmodule Classroom.User do
   end
 
   # remove self() from active_user
-  def handle_in(%{"type" => "logout"}, %{identity: :user}) do
+  def handle_in(%{"type" => "logout"}, state = %{identity: :user}) do
     case Classroom.ActiveUsers.logout() do
       :ok ->
         Logger.debug("Logout: #{inspect(self())} logout success")
-        {:reply, %{type: :logout_success}, %{identity: :guest}}
+        {:reply, %{type: :logout_success}, Map.update!(state, :identity, fn _ -> :guest end)}
     end
   end
 
@@ -128,15 +129,15 @@ defmodule Classroom.User do
   end
 
   def handle_in(
-        %{"type" => "create_class", "name_of_class" => name_of_class},
+        %{"type" => "create_class", "class_name" => class_name},
         state = %{identity: :user}
       ) do
-    Logger.debug("Received create_class of class_name #{name_of_class}")
+    Logger.debug("Received create_class of class_name #{class_name}")
 
-    case Classroom.ClassStore.created_class(name_of_class) do
+    case Classroom.ClassStore.created_class(class_name) do
       :ok ->
         {_, self_name} = Classroom.ActiveUsers.find_user_by_pid(self())
-        :ok = Classroom.ClassStore.subscribe(self_name, name_of_class)
+        :ok = Classroom.ClassStore.subscribe(self_name, class_name)
         {:reply, %{type: :create_class_success}, state}
 
       :error ->
@@ -172,8 +173,58 @@ defmodule Classroom.User do
     Logger.debug("Received get_created_class")
 
     {:reply,
-     %{type: :get_created_class, created_classes: Classroom.ClassStore.get_created_class()},
-     state}
+      %{type: :get_created_class, created_classes: Classroom.ClassStore.get_created_class()},
+      state
+    }
+  end
+
+  def handle_in(%{"type" => "start_class", "class_name" => class_name}, state = %{identity: :user}) do
+    Logger.debug("Received start_class of class_name #{class_name}")
+    case Enum.member?(Classroom.ClassStore.get_created_class, class_name) do
+      true ->
+        case Classroom.ClassStore.start_class(class_name) do
+          :ok -> {:reply, %{type: "start_class #{class_name} success"}, state}
+          :error -> {:reply, %{type: "start_class #{class_name} failed"}, state}
+        end
+      false ->
+        {:reply, %{type: "start_class #{class_name} failed"}, state}
+    end
+  end
+
+  def handle_in(%{"type" => "join_class", "owner" => owner, "class_name" => class_name}, state = %{identity: :user}) do
+    Logger.debug("Received join_class of class_name #{class_name}")
+    {:ok, self} = Classroom.ActiveUsers.find_user_by_pid(self())
+    case Enum.member?(Classroom.ClassStore.get_subscribers(owner, class_name), self) do
+      true ->
+        case Classroom.Class.join(owner, class_name) do
+          :ok ->
+            case state.at do
+              {^owner, ^class_name} -> {:reply, %{type: "join_class #{class_name} failed"}, state}
+              {o, c} ->
+                :ok = Classroom.Class.leave(o, c)
+                {:reply, %{type: "join_class #{class_name} success"}, Map.update!(state, :at, fn _ -> {owner, class_name} end)}
+              _ ->
+                {:reply, %{type: "join_class #{class_name} success"}, Map.update!(state, :at, fn _ -> {owner, class_name} end)}
+            end
+          :error ->
+            {:reply, %{type: "join_class #{class_name} failed"}, state}
+        end
+      false ->
+        {:reply, %{type: "join_class #{class_name} failed"}, state}
+    end
+  end
+
+  def handle_in(
+      %{"type" => "leave_class", "owner" => owner, "class_name" => class_name},
+      state = %{identity: :user, at: {owner, class_name}}
+    ) do
+    Logger.debug("Received leave_class of class_name #{class_name}")
+    case Classroom.Class.leave(owner, class_name) do
+      :ok ->
+        {:reply, %{type: "leave_class #{class_name} success"}, Map.update!(state, :at, fn _ -> :no end)}
+      :error ->
+        {:reply, %{type: "leave_class #{class_name} failed"}, state}
+    end
   end
 
   def handle_in(%{"type" => "get_subscribed_class"}, state = %{identity: :user}) do

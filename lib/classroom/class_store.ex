@@ -35,6 +35,16 @@ defmodule Classroom.ClassStore do
     GenServer.call(__MODULE__, {:get_subscribed_class, self()})
   end
 
+  def start_class(class_name) do
+    GenServer.call(__MODULE__, {:start_class, self(), class_name})
+  end
+
+  def get_subscribers(owner, class_name) do
+    GenServer.call(__MODULE__, {:get_subscribers, owner, class_name})
+  end
+
+  # Server
+
   # TODO change state format
   def init(classes) do
     # [ %{class_name, owner, subscriber: [], } ]
@@ -91,7 +101,27 @@ defmodule Classroom.ClassStore do
     {:reply,
      classes
      |> Enum.filter(fn class -> class.subscriber |> Enum.member?(user) end)
-     |> Enum.map(fn class -> class |> Map.delete(:subscriber) end), classes}
+     |> Enum.map(fn class -> class |> Map.delete(:subscriber) end),
+     classes}
+  end
+
+  def handle_call(:get_starting_class, _from, classes) do
+    {:reply, Map.keys(:sys.get_state(:registry)), classes}
+  end
+
+  def handle_call({:start_class, pid, class_name}, _from, classes) do
+    {:ok, owner} = Classroom.ActiveUsers.find_user_by_pid(pid)
+    case Classroom.ActiveClasses.start_class({owner, class_name}) do
+      {:ok, _} -> {:reply, :ok, classes}
+      _ -> {:reply, :error, classes}
+    end
+  end
+
+  def handle_call({:get_subscribers, owner, class_name}, _from, classes) do
+    case classes |> Enum.find(fn c -> c.owner == owner and c.name == class_name end) do
+      nil -> {:reply, [], classes}
+      class -> {:reply, class.subscriber, classes}
+    end
   end
 
   defp update_classroom(classes, name, owner, task) do

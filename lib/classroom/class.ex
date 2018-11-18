@@ -1,42 +1,47 @@
 defmodule Classroom.Class do
   use GenServer
-  import Logger
 
   # API
 
-  def start_link(class_name) do
-    GenServer.start_link(
-      __MODULE__,
-      [class_name],
-      # name: {:global, "class:#{class_name}"}
-      name: via_tuple(class_name)
-    )
+  def start_link({owner, class_name}) do
+    GenServer.start_link(__MODULE__, [{owner, class_name}], name: via_tuple(owner, class_name))
   end
 
-  def add(class_name, msg) do
-    GenServer.call(via_tuple(class_name), {:add, msg})
+  def join(owner, class_name) do
+    GenServer.call(via_tuple(owner, class_name), {:join, self()})
   end
 
-  def get(class_name) do
-    GenServer.call(via_tuple(class_name), :get)
+  def leave(owner, class_name) do
+    GenServer.call(via_tuple(owner, class_name), {:leave, self()})
   end
 
-  defp via_tuple(class_name) do
+  def get_state(owner, class_name) do
+    GenServer.call(via_tuple(owner, class_name), :get_state)
+  end
+
+  defp via_tuple(owner, class_name) do
     # {:via, module_name, term}
-    {:via, Classroom.ActiveClasses.Registry, {:class_registry, class_name}}
+    {:via, Classroom.ActiveClasses.Registry, {owner, class_name}}
   end
 
   # Server
 
   def init(_args) do
-    {:ok, []}
+    {:ok, %{}}
   end
 
-  def handle_call({:add, msg}, _from, state) do
-    {:reply, :ok, [msg | state]}
+  def handle_call({:join, pid}, _from, state) do
+    case Map.has_key?(state, pid) do
+      true -> {:reply, :error, state}
+      false -> {:reply, :ok, Map.put(state, pid, %{})}
+    end
   end
 
-  def handle_call(:get, _from, state) do
+  def handle_call({:leave, pid}, _from, state) do
+    {:reply, :ok, Map.delete(state, pid)}
+  end
+
+  def handle_call(:get_state, _from, state) do
     {:reply, state, state}
   end
 end

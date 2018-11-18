@@ -1,0 +1,28 @@
+{
+  "name": "elixir_classroom",
+  "version": "1.0.0",
+  "description": "**TODO: Add description**",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/herbert1228/elixir_classroom.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/herbert1228/elixir_classroom/issues"
+  },
+  "homepage": "https://github.com/herbert1228/elixir_classroom#readme",
+  "devDependencies": {
+    "mocha": "^5.2.0",
+    "websocket": "^1.0.28",
+    "ws": "^6.1.2"
+  }
+}

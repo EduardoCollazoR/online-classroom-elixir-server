@@ -35,6 +35,8 @@ defmodule Classroom do
     children = [
       {Classroom.PasswordStore, users: %{"dev" => "dev", "dev2" => "dev2"}},
       Classroom.ActiveUsers,
+      Classroom.ActiveClasses.Registry,
+      Classroom.ActiveClasses,
       #      Classroom.Whiteboard,
       {Classroom.ClassStore, classes: []}
     ]
