@@ -1,4 +1,4 @@
-defmodule Classroom.PasswordStore do
+defmodule Classroom.UserStore do
   use GenServer
 
   def start_link(_args) do

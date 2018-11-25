@@ -39,6 +39,10 @@ defmodule Classroom.ClassStore do
     GenServer.call(__MODULE__, {:start_class, self(), class_name})
   end
 
+  def get_started_class() do
+    GenServer.call(__MODULE__, :get_started_class)
+  end
+
   def get_subscribers(owner, class_name) do
     GenServer.call(__MODULE__, {:get_subscribers, owner, class_name})
   end
@@ -56,8 +60,8 @@ defmodule Classroom.ClassStore do
     {:ok, owner} = Classroom.ActiveUsers.find_user_by_pid(pid)
 
     case classes
-         |> Enum.find(fn %{name: name, owner: o} -> name == class_name && o == owner end) do
-      nil -> {:reply, :ok, [%{name: class_name, owner: owner, subscriber: []} | classes]}
+         |> Enum.find(fn %{class_name: name, owner: o} -> name == class_name && o == owner end) do
+      nil -> {:reply, :ok, [%{class_name: class_name, owner: owner, subscriber: []} | classes]}
       _ -> {:reply, :error, classes}
     end
   end
@@ -86,12 +90,12 @@ defmodule Classroom.ClassStore do
   def handle_call({:get_created_class, pid}, _from, classes) do
     {:ok, owner} = Classroom.ActiveUsers.find_user_by_pid(pid)
 
-    case classes |> Enum.filter(fn %{name: _, owner: o} -> o == owner end) do
+    case classes |> Enum.filter(fn %{class_name: _, owner: o} -> o == owner end) do
       [] ->
         {:reply, [], classes}
 
       list ->
-        {:reply, list |> Enum.map(fn x -> x[:name] end), classes}
+        {:reply, list |> Enum.map(fn x -> x[:class_name] end), classes}
     end
   end
 
@@ -105,8 +109,13 @@ defmodule Classroom.ClassStore do
      classes}
   end
 
-  def handle_call(:get_starting_class, _from, classes) do
-    {:reply, Map.keys(:sys.get_state(:registry)), classes}
+  def handle_call(:get_started_class, _from, classes) do
+    {:reply,
+      :sys.get_state(:registry)
+        |> Map.keys
+        |> Enum.map(fn {owner, class_name} -> %{owner: owner, class_name: class_name} end),
+      classes
+    }
   end
 
   def handle_call({:start_class, pid, class_name}, _from, classes) do
@@ -118,7 +127,7 @@ defmodule Classroom.ClassStore do
   end
 
   def handle_call({:get_subscribers, owner, class_name}, _from, classes) do
-    case classes |> Enum.find(fn c -> c.owner == owner and c.name == class_name end) do
+    case classes |> Enum.find(fn c -> c.owner == owner and c.class_name == class_name end) do
       nil -> {:reply, [], classes}
       class -> {:reply, class.subscriber, classes}
     end
@@ -126,7 +135,7 @@ defmodule Classroom.ClassStore do
 
   defp update_classroom(classes, name, owner, task) do
     Enum.map(classes, fn
-      class = %{name: ^name, owner: ^owner} -> task.(class)
+      class = %{class_name: ^name, owner: ^owner} -> task.(class)
       class -> class
     end)
   end

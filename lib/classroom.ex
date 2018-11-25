@@ -33,7 +33,7 @@ defmodule Classroom do
     Logger.info("Listening on port #{port}")
 
     children = [
-      {Classroom.PasswordStore, users: %{"dev" => "dev", "dev2" => "dev2"}},
+      {Classroom.UserStore, users: %{"dev" => "dev", "dev2" => "dev2"}},
       Classroom.ActiveUsers,
       Classroom.ActiveClasses.Registry,
       Classroom.ActiveClasses,

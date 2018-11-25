@@ -5,7 +5,7 @@ defmodule Classroom.User do
   #   login (g)                   {"type":"login","username":"herbert","password":"123"}
   #   register (g)                {"type":"register","username":"herbert","password":"123", nickname}
   #   logout (u)                  {"type":"logout"}
-  #   draw (u)
+  #   draw (u+o)
   #   chat (u)
   #
   #   create classroom (u)        {"type":"create_class","class_name": class_name}
@@ -20,9 +20,11 @@ defmodule Classroom.User do
   #   pause classroom (u+owner)
   #   join classroom (u)          {"type": "join_class", "owner": "dev", "class_name": "class"}
   #   leave classroom (u)         {"type": "leave_class", "owner": "dev", "class_name": "class"}
+  #   get_session_user (o)        {type: "get_session_user"}
+  #   get started class           {type: "get_started_class"}
   #
   # update:
-  #   classroom (u)
+  #   classroom (u)  : session_user
   #   message (u)
   #   draw (u)
 
@@ -54,13 +56,15 @@ defmodule Classroom.User do
   end
 
   def websocket_info(json, state = %{identity: :user}) do
-    {:reply, json, state}
+    # {:reply, json, state}
+    handle_in(json, state)
     |> handle_call_result()
   end
 
   def websocket_info(json, state) do
     Logger.debug("Server sending message to invalid client, msg: #{json}")
-    {:stop, state}
+    # {:stop, state}
+    {:reply, %{type: :unexpected_internal_error}, state}
   end
 
   def handle_call_result({:ok, new_state}) do
@@ -80,7 +84,7 @@ defmodule Classroom.User do
         %{"type" => "login", "username" => name, "password" => pass},
         state = %{identity: :guest}
       ) do
-    case Classroom.PasswordStore.valid_password?(name, pass) do
+    case Classroom.UserStore.valid_password?(name, pass) do
       true ->
         Logger.debug("Login: #{name} login success")
         :ok = Classroom.ActiveUsers.login(name)
@@ -94,9 +98,11 @@ defmodule Classroom.User do
 
   # remove self() from active_user
   def handle_in(%{"type" => "logout"}, state = %{identity: :user}) do
-    case Classroom.ActiveUsers.logout() do
+    tmp = Classroom.ActiveUsers.logout()
+    IO.inspect(tmp)
+    case tmp do
       :ok ->
-        Logger.debug("Logout: #{inspect(self())} logout success")
+        Logger.debug("Logout: #{inspect self()} logout success")
         {:reply, %{type: :logout_success}, Map.update!(state, :identity, fn _ -> :guest end)}
     end
   end
@@ -106,7 +112,7 @@ defmodule Classroom.User do
         state = %{identity: :guest}
       )
       when is_binary(user) and is_binary(user) and byte_size(user) <= 20 and byte_size(pass) <= 20 do
-    case Classroom.PasswordStore.register(user, pass) do
+    case Classroom.UserStore.register(user, pass) do
       :ok ->
         Logger.debug("Register: #{user} register success")
         {:reply, %{type: :register_success}, state}
@@ -152,8 +158,8 @@ defmodule Classroom.User do
     Logger.debug("Received subscribe_class of class_name #{class_name}")
 
     case Classroom.ClassStore.subscribe(owner, class_name) do
-      :ok -> {:reply, %{type: "subscribed #{owner}'s #{class_name} success"}, state}
-      :error -> {:reply, %{type: "subscribed #{owner}'s #{class_name} failed"}, state}
+      :ok -> {:reply, %{type: "subscribe_class success", owner: owner, class_name: class_name}, state}
+      :error -> {:reply, %{type: "subscribe_class failed", owner: owner, class_name: class_name}, state}
     end
   end
 
@@ -164,8 +170,8 @@ defmodule Classroom.User do
     Logger.debug("Received subscribe_class of class_name #{class_name}")
 
     case Classroom.ClassStore.unsubscribe(owner, class_name) do
-      :ok -> {:reply, %{type: "unsubscribed #{owner}'s #{class_name} success"}, state}
-      :error -> {:reply, %{type: "unsubscribed #{owner}'s #{class_name} failed"}, state}
+      :ok -> {:reply, %{type: "unsubscribe_class success", owner: owner, class_name: class_name}, state}
+      :error -> {:reply, %{type: "unsubscribe_class failed", owner: owner, class_name: class_name}, state}
     end
   end
 
@@ -183,11 +189,11 @@ defmodule Classroom.User do
     case Enum.member?(Classroom.ClassStore.get_created_class, class_name) do
       true ->
         case Classroom.ClassStore.start_class(class_name) do
-          :ok -> {:reply, %{type: "start_class #{class_name} success"}, state}
-          :error -> {:reply, %{type: "start_class #{class_name} failed"}, state}
+          :ok -> {:reply, %{type: "start_class success", class_name: class_name}, state}
+          :error -> {:reply, %{type: "start_class failed", class_name: class_name}, state}
         end
       false ->
-        {:reply, %{type: "start_class #{class_name} failed"}, state}
+        {:reply, %{type: "start_class failed", class_name: class_name}, state}
     end
   end
 
@@ -199,18 +205,18 @@ defmodule Classroom.User do
         case Classroom.Class.join(owner, class_name) do
           :ok ->
             case state.at do
-              {^owner, ^class_name} -> {:reply, %{type: "join_class #{class_name} failed"}, state}
+              {^owner, ^class_name} -> {:reply, %{type: "join_class success", owner: owner, class_name: class_name}, state}
               {o, c} ->
                 :ok = Classroom.Class.leave(o, c)
-                {:reply, %{type: "join_class #{class_name} success"}, Map.update!(state, :at, fn _ -> {owner, class_name} end)}
+                {:reply, %{type: "join_class success", owner: owner, class_name: class_name}, Map.update!(state, :at, fn _ -> {owner, class_name} end)}
               _ ->
-                {:reply, %{type: "join_class #{class_name} success"}, Map.update!(state, :at, fn _ -> {owner, class_name} end)}
+                {:reply, %{type: "join_class success", owner: owner, class_name: class_name}, Map.update!(state, :at, fn _ -> {owner, class_name} end)}
             end
           :error ->
-            {:reply, %{type: "join_class #{class_name} failed"}, state}
+            {:reply, %{type: "join_class failed", owner: owner, class_name: class_name}, state}
         end
       false ->
-        {:reply, %{type: "join_class #{class_name} failed"}, state}
+        {:reply, %{type: "join_class failed", owner: owner, class_name: class_name}, state}
     end
   end
 
@@ -221,23 +227,39 @@ defmodule Classroom.User do
     Logger.debug("Received leave_class of class_name #{class_name}")
     case Classroom.Class.leave(owner, class_name) do
       :ok ->
-        {:reply, %{type: "leave_class #{class_name} success"}, Map.update!(state, :at, fn _ -> :no end)}
+        {:reply, %{type: "leave_class success", owner: owner, class_name: class_name}, Map.update!(state, :at, fn _ -> :no end)}
       :error ->
-        {:reply, %{type: "leave_class #{class_name} failed"}, state}
+        {:reply, %{type: "leave_class failed", owner: owner, class_name: class_name}, state}
     end
   end
 
   def handle_in(%{"type" => "get_subscribed_class"}, state = %{identity: :user}) do
     Logger.debug("Received get_subscribed_clas")
+    {:reply,
+      %{
+         type: :get_subscribed_class,
+         subscribed_class: Classroom.ClassStore.get_subscribed_class()
+       }, state}
+  end
 
+  def handle_in(%{"type" => "get_started_class"}, state = %{identity: :user}) do
+    Logger.debug("Received get_started_class")
     {:reply,
      %{
-       type: :get_subscribed_class,
-       subscribed_classes: Classroom.ClassStore.get_subscribed_class()
+       type: :get_started_class,
+       started_class: Classroom.ClassStore.get_started_class()
      }, state}
   end
 
-  def handle_in(_, state) do
+def handle_in(%{"type" => "get_session_user"}, state = %{at: {owner, class_name}}) do
+  {:reply,
+    %{
+    type: :get_session_user,
+    session_user: Classroom.Class.get_session_user(owner, class_name)},
+    state}
+end
+
+def handle_in(_, state) do
     Logger.debug("Unexpected action")
     # {:stop, state}
     {:reply, %{type: :unexpected}, state}
