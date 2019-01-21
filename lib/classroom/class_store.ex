@@ -121,15 +121,34 @@ defmodule Classroom.ClassStore do
   def handle_call({:start_class, pid, class_name}, _from, classes) do
     {:ok, owner} = Classroom.ActiveUsers.find_user_by_pid(pid)
     case Classroom.ActiveClasses.start_class({owner, class_name}) do
-      {:ok, _} -> {:reply, :ok, classes}
-      _ -> {:reply, :error, classes}
+      {:ok, _} ->
+        json = %{type: :get_started_class}
+        case get_sub(owner, class_name, classes) do
+          [] ->
+            nil
+          sub ->
+            # Classroom.ClassStore.get_subscribers(owner, class_name)
+            sub
+              |> Enum.map(fn u -> Classroom.ActiveUsers.find_pid_by_user(u) end)
+              |> Enum.filter(&match?({:ok, _}, &1))
+              |> Enum.map(fn {_, pid} -> send pid, json end)
+        end
+        {:reply, :ok, classes}
+      _ ->
+        {:reply, :error, classes}
     end
   end
 
   def handle_call({:get_subscribers, owner, class_name}, _from, classes) do
+    {:reply, get_sub(owner, class_name, classes), classes}
+  end
+
+  defp get_sub(owner, class_name, classes) do
     case classes |> Enum.find(fn c -> c.owner == owner and c.class_name == class_name end) do
-      nil -> {:reply, [], classes}
-      class -> {:reply, class.subscriber, classes}
+      nil ->
+        []
+      class ->
+        class.subscriber
     end
   end
 

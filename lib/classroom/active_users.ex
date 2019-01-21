@@ -2,7 +2,7 @@ defmodule Classroom.ActiveUsers do
   use GenServer
 
   def start_link(_args) do
-    GenServer.start_link(__MODULE__, nil, name: __MODULE__, debug: [:trace])
+    GenServer.start_link(__MODULE__, nil, name: __MODULE__) #, debug: [:trace])
   end
 
   def login(username) do
@@ -16,6 +16,10 @@ defmodule Classroom.ActiveUsers do
   # {:ok, name} | :error
   def find_user_by_pid(pid) do
     GenServer.call(__MODULE__, {:find_user_by_pid, pid})
+  end
+
+  def find_pid_by_user(username) do
+    GenServer.call(__MODULE__, {:find_pid_by_user, username})
   end
 
   @impl true
@@ -41,11 +45,17 @@ defmodule Classroom.ActiveUsers do
 
   @impl true
   def handle_call({:find_user_by_pid, pid}, _from, users) do
-    IO.puts(:reach)
-
     case users |> Enum.find(fn {_key, val, _} -> val == pid end) do
       nil -> {:reply, :error, users}
       {name, _, _} -> {:reply, {:ok, name}, users}
+    end
+  end
+
+  @impl true
+  def handle_call({:find_pid_by_user, username}, _from, users) do
+    case users |> Enum.find(fn {val, _key, _} -> val == username end) do
+      nil -> {:reply, :error, users}
+      {_, pid, _} -> {:reply, {:ok, pid}, users}
     end
   end
 

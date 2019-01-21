@@ -3,7 +3,7 @@ defmodule Classroom.UserStore do
 
   def start_link(_args) do
     # debug: [:trace]
-    GenServer.start_link(__MODULE__, nil, name: __MODULE__, debug: [:trace])
+    GenServer.start_link(__MODULE__, nil, name: __MODULE__) #, debug: [:trace])
   end
 
   def valid_password?(username, password) do

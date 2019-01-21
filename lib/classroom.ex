@@ -38,7 +38,8 @@ defmodule Classroom do
       Classroom.ActiveClasses.Registry,
       Classroom.ActiveClasses,
       #      Classroom.Whiteboard,
-      {Classroom.ClassStore, classes: []}
+      {Classroom.ClassStore, classes: []},
+      {Plug.Cowboy, scheme: :http, plug: Classroom.Upload, options: [port: 8888]}
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one)
