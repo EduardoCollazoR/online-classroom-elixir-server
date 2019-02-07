@@ -30,10 +30,10 @@ defmodule Classroom.Class do
     GenServer.call(via_tuple(owner, class_name), {:handle_class_direct_message, message, self()})
   end
 
-  def handle_class_broadcast_message(owner, class_name, message) do
+  def handle_got_media(owner, class_name, message) do
     GenServer.call(
       via_tuple(owner, class_name),
-      {:handle_class_broadcast_message, message, self()}
+      {:handle_got_media, message, self()}
     )
   end
 
@@ -50,33 +50,31 @@ defmodule Classroom.Class do
   end
 
   def handle_info({:DOWN, _, :process, pid, _}, state) do
-    broadcast(state, %{type: :get_session_user})
+    update_class_state_to_clients(state)
     {:noreply, Map.delete(state, pid)}
   end
 
   def handle_call({:join, pid}, _from, state) do
     case Map.has_key?(state, pid) do
       true ->
-        {:reply, :error, state}
+        {:reply, [:reject, :already_joined], state}
 
       false ->
         Process.monitor(pid)
         new_state = Map.put(state, pid, %{pc: false})
 
-        send(pid, %{
-          type: :get_exist_peer_conn
-        })
+        send(pid, :signaling, :get_exist_peer_conn)
 
-        broadcast(new_state, %{type: :get_session_user})
+        update_class_state_to_clients(new_state)
 
-        broadcast_to_pc_ready(new_state, pid)
+        # broadcast_to_pc_ready(new_state, pid)
 
         {:reply, :ok, new_state}
     end
   end
 
   def handle_call({:leave, pid}, _from, state) do
-    broadcast(Map.delete(state, pid), %{type: :get_session_user})
+    update_class_state_to_clients(Map.delete(state, pid))
     {:reply, :ok, Map.delete(state, pid)}
   end
 
@@ -113,51 +111,63 @@ defmodule Classroom.Class do
     end
   end
 
-  def handle_call({:handle_class_broadcast_message, message, sender_pid}, _from, state) do
-    new_state =
-      if message["type"] == "got user media" do
-        new_s = switch_pc_state(sender_pid, state)
-        new_s
-      else
-        state
-      end
+  def handle_call({:handle_got_media, sender_pid}, _from, state) do
+    {:ok, stream_owner} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
 
-    # TODO change to following to case statement i.e. message["type"] in ["offer", "bye"]
-    if message["type"] in ["got user media", "offer", "bye"] do
-      {:ok, stream_owner} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
+    update_pc_in_state(sender_pid, state)
+    |> Map.keys()
+    |> Enum.filter(fn pid -> pid != sender_pid end) # broadcast to all besides sender
+    |> Enum.map(fn pid -> send(
+        pid,
+        :signaling,
+        :noti_got_media,
+        stream_owner #owner
+      ) end)
 
-      broadcast(
-        new_state,
-        %{
-          type: :broadcast_message,
-          message: Map.put(message, "stream_owner", stream_owner)
-        }
-      )
-
-      {:reply, :ok, new_state}
-    else
-      IO.puts("cannot broadcast message: #{inspect(message)}")
-      IO.puts("#{inspect(message["type"])}, #{inspect(message["type"] == "request_offer")}")
-      # TODO :ok -> :error
-      {:reply, :ok, new_state}
-    end
+    {:reply, :ok, new_state}
   end
 
+  # def handle_call({:handle_class_broadcast_message, message, sender_pid}, _from, state) do
+  #   new_state =
+  #     if message["type"] == "got user media" do
+  #       new_s = switch_pc_state(sender_pid, state)
+  #       new_s
+  #     else
+  #       state
+  #     end
+
+  #   # TODO change to following to case statement i.e. message["type"] in ["offer", "bye"]
+  #   if message["type"] in ["got user media", "bye"] do
+  #     {:ok, stream_owner} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
+
+  #     broadcast_except_sender(
+  #       new_state,
+  #       %{
+  #         type: :broadcast_message,
+  #         message: Map.put(message, :stream_owner, stream_owner)
+  #       },
+  #       sender_pid
+  #     )
+
+  #     {:reply, :ok, new_state}
+  #   end
+  # end
+
   # def handle_call({:upload, pid}, _from, state) do //copied from leave
-  #   broadcast(Map.delete(state, pid), %{"type" => "get_session_user"})
+  #   update_class_state_to_clients(Map.delete(state, pid))
   #   {:reply, :ok, Map.delete(state, pid)}
   # end
 
-  defp broadcast(state, json) do
-    state |> Map.keys() |> Enum.map(fn pid -> send(pid, json) end)
+  defp update_class_state_to_clients(state) do
+    state |> Map.keys() |> Enum.map(fn pid -> send(pid, :get_session_user) end)
   end
 
-  defp broadcast_except_sender(state, json, sender_pid) do
-    state
-    |> Map.keys()
-    |> Enum.filter(fn pid -> pid != sender_pid end)
-    |> Enum.map(fn pid -> send(pid, json) end)
-  end
+  # defp broadcast_except_sender(state, json, sender_pid) do
+  #   state
+  #   |> Map.keys()
+  #   |> Enum.filter(fn pid -> pid != sender_pid end)
+  #   |> Enum.map(fn pid -> send(pid, json) end)
+  # end
 
   defp broadcast_to_pc_ready(state, joiner_pid) do
     {:ok, joiner} = Classroom.ActiveUsers.find_user_by_pid(joiner_pid)
@@ -167,13 +177,13 @@ defmodule Classroom.Class do
       case Classroom.ActiveUsers.find_pid_by_user(u) do
         {:ok, pid} ->
           send(pid, %{
-            type: "broadcast_message",
+            type: :broadcast_message,
             message: %{
-              type: "join",
+              type: :join,
               stream_owner: u,
               joiner: joiner
             },
-            DEBUG: :boardcast_to_pc_ready
+            DEBUG: :broadcast_to_pc_ready
           })
 
         _ ->
@@ -182,7 +192,7 @@ defmodule Classroom.Class do
     end)
   end
 
-  defp switch_pc_state(pid, state) do
+  defp update_pc_in_state(pid, state) do
     state |> update_in([pid, :pc], &(!&1))
   end
 

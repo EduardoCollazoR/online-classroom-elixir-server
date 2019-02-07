@@ -62,7 +62,7 @@ defmodule Classroom.ClassStore do
     case classes
          |> Enum.find(fn %{class_name: name, owner: o} -> name == class_name && o == owner end) do
       nil -> {:reply, :ok, [%{class_name: class_name, owner: owner, subscriber: []} | classes]}
-      _ -> {:reply, :error, classes}
+      _ -> {:reply, [:error, :class_already_exist], classes}
     end
   end
 
@@ -122,7 +122,6 @@ defmodule Classroom.ClassStore do
     {:ok, owner} = Classroom.ActiveUsers.find_user_by_pid(pid)
     case Classroom.ActiveClasses.start_class({owner, class_name}) do
       {:ok, _} ->
-        json = %{type: :get_started_class}
         case get_sub(owner, class_name, classes) do
           [] ->
             nil
@@ -131,7 +130,7 @@ defmodule Classroom.ClassStore do
             sub
               |> Enum.map(fn u -> Classroom.ActiveUsers.find_pid_by_user(u) end)
               |> Enum.filter(&match?({:ok, _}, &1))
-              |> Enum.map(fn {_, pid} -> send pid, json end)
+              |> Enum.map(fn {_, pid} -> send pid, :get_started_class end)
         end
         {:reply, :ok, classes}
       _ ->

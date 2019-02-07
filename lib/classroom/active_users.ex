@@ -31,7 +31,7 @@ defmodule Classroom.ActiveUsers do
   def handle_call({:login, pid, username}, _from, users) do
     case already_logged_in?(users, username) do
       true ->
-        {:reply, :error, users}
+        {:reply, [:error, :already_logged_in], users}
 
       false ->
         {:reply, :ok, add_user(users, username, pid)}

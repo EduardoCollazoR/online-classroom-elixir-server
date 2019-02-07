@@ -1,6 +1,6 @@
 {application,mongooseice,
              [{applications,[kernel,stdlib,elixir,logger,runtime_tools,crypto,
-                             confex,jerboa,mix_docker]},
+                             confex,jerboa]},
               {description,"STUN/TURN server"},
               {modules,['Elixir.MongooseICE','Elixir.MongooseICE.Application',
                         'Elixir.MongooseICE.Auth',

@@ -6,29 +6,31 @@ defmodule Classroom do
   def start(_type, _args) do
     port = 8500
 
-    routes = [
-      {
-        :_,
-        [
-          {"/", Classroom.User, nil}
-        ]
-      }
-    ]
+    # routes = [
+    #   {
+    #     :_,
+    #     [
+    #       {"/", Classroom.User, nil}
+    #     ]
+    #   }
+    # ]
 
-    router = :cowboy_router.compile(routes)
+    # router = :cowboy_router.compile(routes)
 
-    {:ok, _} =
-      :cowboy.start_clear(
-        :http,
-        [port: port],
-        %{
-          env: %{
-            dispatch: router
-          }
-        }
-      )
+    # {:ok, _} =
+    #   :cowboy.start_clear(
+    #     :http,
+    #     [port: port],
+    #     %{
+    #       env: %{
+    #         dispatch: router
+    #       }
+    #     }
+    #   )
 
-    Application.ensure_all_started(:gun)
+    # Application.ensure_all_started(:gun)
+
+    Classroom.Websocket.start(port, Classroom.Connection, nil)
 
     Logger.info("Listening on port #{port}")
 

@@ -276,9 +276,10 @@ defmodule Classroom.User do
     handle_get_started_class(state)
   end
 
-  def handle_in(%{"type" => "get_exist_peer_conn"}, state = %{at: {owner, class_name}}) do
-    handle_get_exist_peer_conn(owner, class_name, state)
-  end
+  # useless
+  # def handle_in(%{"type" => "get_exist_peer_conn"}, state = %{at: {owner, class_name}}) do
+  #   handle_get_exist_peer_conn(owner, class_name, state)
+  # end
 
   def handle_in(%{"type" => "get_session_user"}, state = %{at: {owner, class_name}}) do
     handle_get_session_user(owner, class_name, state)
