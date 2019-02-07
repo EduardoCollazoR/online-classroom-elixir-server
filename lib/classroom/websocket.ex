@@ -52,12 +52,12 @@ defmodule Classroom.Websocket do
     end
   end
 
-  def websocket_info(term, {mod, state}) do
-    mod.handle_info(term, state) |> info_result(mod)
+  def websocket_info([:signaling, [term | params]], {_, state}) do
+    Classroom.Signaling.handle_info(term, params, state) |> #TODO signal_info_result()
   end
 
-  def websocket_info(:signaling, term, {_, state}) do
-    Classroom.Signaling.info(term, state) |> #TODO signal_info_result()
+  def websocket_info(term, {mod, state}) do
+    mod.handle_info(term, state) |> info_result(mod)
   end
 
   def terminate(_reason, _req, _state) do
