@@ -26,6 +26,27 @@ defmodule Classroom.Class do
     GenServer.call(via_tuple(owner, class_name), {:handle_class_direct_message, message, self()})
   end
 
+  def handle_request_offer(owner, class_name, to) do
+    GenServer.call(
+      via_tuple(owner, class_name),
+      {:handle_request_offer, to, self()}
+    )
+  end
+
+  def handle_offer(owner, class_name, stream_owner, offer, to) do
+    GenServer.call(
+      via_tuple(owner, class_name),
+      {:handle_offer, stream_owner, offer, to, self()}
+    )
+  end
+
+  def handle_answer(owner, class_name, stream_owner, answer, to) do
+    GenServer.call(
+      via_tuple(owner, class_name),
+      {:handle_answer, stream_owner, answer, to, self()}
+    )
+  end
+
   def handle_got_media(owner, class_name) do
     GenServer.call(
       via_tuple(owner, class_name),
@@ -34,7 +55,7 @@ defmodule Classroom.Class do
   end
 
   def handle_candidate(owner, class_name, stream_owner, candidate, to) do
-    GenServer.call(via_tuple(owner, class_name), {:handle_candidate, candidate, to, self()})
+    GenServer.call(via_tuple(owner, class_name), {:handle_candidate, stream_owner, candidate, to, self()})
   end
 
   defp via_tuple(owner, class_name) do
@@ -95,40 +116,11 @@ defmodule Classroom.Class do
       end)
   end
 
-  def handle_call({:handle_class_direct_message, message, sender_pid}, _from, state) do
-    if message["type"] in ["offer", "answer", "candidate", "request_offer"] do
-      {:ok, to} = Classroom.ActiveUsers.find_pid_by_user(message["to"])
-      {:ok, sender_name} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
-
-      send(to, %{
-        type: :broadcast_message,
-        message: Map.put(message, "from", sender_name),
-        DEBUG: :handle_class_direct_message
-      })
-
-      {:reply, :ok, state}
-    end
-  end
-
-  def handle_call({:handle_candidate, stream_owner, candidate, to, sender_pid}, _from, state) do
-    {:ok, to} = Classroom.ActiveUsers.find_pid_by_user(to)
-    {:ok, sender_name} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
-
-    send(to, [
-      :signaling, [
-        :candidate,
-        stream_owner,
-        candidate,
-        sender_name
-      ]])
-
-    {:reply, :ok, state}
-  end
-
   def handle_call({:handle_got_media, sender_pid}, _from, state) do
     {:ok, stream_owner} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
+    new_state = update_pc_in_state(sender_pid, state)
 
-    update_pc_in_state(sender_pid, state)
+    new_state
     |> Map.keys()
     |> Enum.filter(fn pid -> pid != sender_pid end) # broadcast to all besides sender
     |> Enum.map(fn pid -> send(
@@ -140,6 +132,79 @@ defmodule Classroom.Class do
       ) end)
 
     {:reply, :ok, new_state}
+  end
+
+  def handle_call({:handle_class_direct_message, message, sender_pid}, _from, state) do
+    if message["type"] in ["offer", "answer", "candidate", "request_offer"] do
+      {:ok, target} = Classroom.ActiveUsers.find_pid_by_user(message["to"])
+      {:ok, sender_name} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
+
+      send(target, %{
+        type: :broadcast_message,
+        message: Map.put(message, "from", sender_name),
+        DEBUG: :handle_class_direct_message
+      })
+
+      {:reply, :ok, state}
+    end
+  end
+
+  def handle_call({:handle_request_offer, to, sender_pid}, _from, state) do
+    {:ok, target} = Classroom.ActiveUsers.find_pid_by_user(to)
+    {:ok, sender_name} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
+
+    send(target, [
+      :signaling, [
+        :request_offer,
+        sender_name
+    ]])
+
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:handle_offer, stream_owner, offer, to, sender_pid}, _from, state) do
+    {:ok, target} = Classroom.ActiveUsers.find_pid_by_user(to)
+    {:ok, sender_name} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
+
+    send(target, [
+      :signaling, [
+        :offer,
+        stream_owner,
+        offer,
+        sender_name
+    ]])
+
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:handle_answer, stream_owner, answer, to, sender_pid}, _from, state) do
+    {:ok, target} = Classroom.ActiveUsers.find_pid_by_user(to)
+    {:ok, sender_name} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
+
+    send(target, [
+      :signaling, [
+        :answer,
+        stream_owner,
+        answer,
+        sender_name
+    ]])
+
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:handle_candidate, stream_owner, candidate, to, sender_pid}, _from, state) do
+    {:ok, target} = Classroom.ActiveUsers.find_pid_by_user(to)
+    {:ok, sender_name} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
+
+    send(target, [
+      :signaling, [
+        :candidate,
+        stream_owner,
+        candidate,
+        sender_name
+      ]])
+
+    {:reply, :ok, state}
   end
 
   defp update_class_state_to_clients(state) do

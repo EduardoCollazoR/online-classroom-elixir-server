@@ -10,6 +10,8 @@
                         'Elixir.Classroom.Connection',
                         'Elixir.Classroom.DrawerStore',
                         'Elixir.Classroom.Handler.Protocol',
+                        'Elixir.Classroom.Signaling',
+                        'Elixir.Classroom.Signaling.Protocol',
                         'Elixir.Classroom.Upload',
                         'Elixir.Classroom.Upload.Router',
                         'Elixir.Classroom.User','Elixir.Classroom.UserStore',

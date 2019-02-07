@@ -45,15 +45,18 @@ defmodule Classroom.Websocket do
         mod.handle_call(type, params, state) |> call_result(mod, id)
 
       {:ok, ["signal_cast", type, params]} ->
-        Classroom.Signaling.handle_cast(type, params, state) |> #TODO signal_cast_result()
+        Classroom.Signaling.handle_cast(type, params, state) |> cast_result(mod)
+
+      {:ok, ["signal_call", id, type, params]} ->
+        Classroom.Signaling.handle_cast(type, params, state) |> call_result(mod, id)
 
       {:error, _} ->
         {:reply, {:close, 1003, "Unsupported Data"}, s}
     end
   end
 
-  def websocket_info([:signaling, [term | params]], {_, state}) do
-    Classroom.Signaling.handle_info(term, params, state) |> #TODO signal_info_result()
+  def websocket_info([:signaling, [term | params]], {mod, state}) do
+    Classroom.Signaling.handle_info(term, params, state) |> info_result(mod)
   end
 
   def websocket_info(term, {mod, state}) do
@@ -91,4 +94,5 @@ defmodule Classroom.Websocket do
         {:reply, [{:text, Poison.encode!([:reply, id, reply])}, :close], {mod, new_state}}
     end
   end
+
 end
