@@ -45,11 +45,9 @@ defmodule Classroom.Websocket do
         mod.handle_call(type, params, state) |> call_result(mod, id)
 
       {:ok, ["signal_cast", type, params]} ->
-        IO.puts "signal_cast: #{type}"
         Classroom.Signaling.handle_cast(type, params, state) |> cast_result(mod)
 
       {:ok, ["signal_call", id, type, params]} ->
-        IO.puts "signal_call: #{type}"
         Classroom.Signaling.handle_cast(type, params, state) |> call_result(mod, id)
 
       {:error, _} ->
@@ -58,12 +56,10 @@ defmodule Classroom.Websocket do
   end
 
   def websocket_info([:signaling, [term, params]], {mod, state}) do
-    IO.inspect "signal_info: #{term}, #{inspect params}"
     Classroom.Signaling.handle_info(term, params, state) |> info_result(mod)
   end
 
   def websocket_info([:signaling, [term | params]], {mod, state}) do
-    IO.inspect "signal_info: #{term}"
     Classroom.Signaling.handle_info(term, params, state) |> info_result(mod)
   end
 
@@ -75,10 +71,7 @@ defmodule Classroom.Websocket do
     :ok
   end
 
-  # same as cast_result
-  defp info_result(result, mod) do
-    cast_result(result, mod)
-  end
+  defp info_result(result, mod), do: cast_result(result, mod) # identical
 
   defp cast_result(result, mod) do
     case result do

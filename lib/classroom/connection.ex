@@ -189,8 +189,7 @@ defmodule Classroom.Connection do
 
   @impl true
   def handle_call(
-        "leave_class",
-        %{"owner" => owner, "class_name" => class_name},
+        "leave_class", _,
         state = %{identity: :user, at: {owner, class_name}}
       ) do
     :ok = Classroom.Class.leave(owner, class_name)
