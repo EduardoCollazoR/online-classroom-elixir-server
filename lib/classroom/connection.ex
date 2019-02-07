@@ -18,7 +18,7 @@ defmodule Classroom.Connection do
   @impl true
   # TODO change _
   def handle_info(:get_session_user, state = %{identity: :user, at: {owner, class_name}}) do
-    {:event, %{result: Classroom.Class.get_session_user(owner, class_name)}, state}
+    {:event, :get_session_user, %{result: Classroom.Class.get_session_user(owner, class_name)}, state}
   end
 
   @impl true
@@ -172,10 +172,10 @@ defmodule Classroom.Connection do
               {o, c} ->
                 :ok = Classroom.Class.leave(o, c)
 
-                {:reply, %{type: :ok}, Map.update!(state, :at, &(&1 = {"owner", "class_name"}))}
+                {:reply, %{type: :ok}, Map.update!(state, :at, &(&1 = {owner, class_name}))}
 
               _ ->
-                {:reply, %{type: :ok}, Map.update!(state, :at, &(&1 = {"owner", "class_name"}))}
+                {:reply, %{type: :ok}, Map.update!(state, :at, &(&1 = {owner, class_name}))}
             end
 
           [:reject, reason] ->
@@ -230,3 +230,12 @@ defmodule Classroom.Connection do
     {:reply, %{type: :unexpected}, state}
   end
 end
+{
+  :event,
+  %{result: ["dev"]},
+  %{
+    at: {"dev", "test"},
+    identity: :user,
+    user_data: %{}
+  }
+}

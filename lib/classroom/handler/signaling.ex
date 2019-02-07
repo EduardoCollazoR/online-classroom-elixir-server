@@ -11,7 +11,7 @@ defmodule Classroom.Signaling do
 
   @impl true
   def handle_info(:update_exist_peer_conn, exist_peer_conn, state = %{identity: :user, at: {owner, class_name}}) do
-    {:event, :update_exist_peer_conn, %{result: exist_peer_conn}, state}
+    {:event, :get_exist_peer_conn, %{result: exist_peer_conn}, state}
   end
 
   @impl true
