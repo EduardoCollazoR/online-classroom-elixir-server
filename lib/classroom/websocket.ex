@@ -1,6 +1,8 @@
 defmodule Classroom.Websocket do
   @behaviour :cowboy_websocket
-  @idle_timeout 60 * 60 * 1000
+  # @idle_timeout 60 * 60 * 1000
+  @idle_timeout 5 * 1000
+  require Logger
 
   def start(port, mod, args) do
     routes = [
@@ -49,6 +51,9 @@ defmodule Classroom.Websocket do
 
       {:ok, ["signal_call", id, type, params]} ->
         Classroom.Signaling.handle_cast(type, params, state) |> call_result(mod, id)
+
+      {:ok, "keep_alive"} ->
+        {:ok, s}
 
       {:error, _} ->
         {:reply, {:close, 1003, "Unsupported Data"}, s}

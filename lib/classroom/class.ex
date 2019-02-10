@@ -116,6 +116,8 @@ defmodule Classroom.Class do
       end)
   end
 
+  # Signaling
+
   def handle_call({:handle_got_media, sender_pid}, _from, state) do
     {:ok, stream_owner} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
     new_state = update_pc_in_state(sender_pid, state)

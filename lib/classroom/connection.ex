@@ -134,11 +134,7 @@ defmodule Classroom.Connection do
   end
 
   @impl true
-  def handle_call(
-        "start_class",
-        %{"class_name" => class_name},
-        state = %{identity: :user}
-      ) do
+  def handle_call("start_class", %{"class_name" => class_name}, state = %{identity: :user}) do
     case Enum.member?(Classroom.ClassStore.get_created_class(), class_name) do
       true ->
         case Classroom.ClassStore.start_class(class_name) do
@@ -152,11 +148,7 @@ defmodule Classroom.Connection do
   end
 
   @impl true
-  def handle_call(
-        "join_class",
-        %{"owner" => owner, "class_name" => class_name},
-        state = %{identity: :user}
-      ) do
+  def handle_call("join_class", %{"owner" => owner, "class_name" => class_name}, state = %{identity: :user}) do
     {:ok, self} = Classroom.ActiveUsers.find_user_by_pid(self())
 
     case Enum.member?(Classroom.ClassStore.get_subscribers(owner, class_name), self) do
@@ -165,13 +157,10 @@ defmodule Classroom.Connection do
           :ok ->
             case state.at do
               {^owner, ^class_name} ->
-                # {:reply, %{type: "join_class success", owner: owner, class_name: class_name},
-                #  state}
                 {:reply, %{type: :reject, reason: :invalid_action}, state}
 
               {o, c} ->
                 :ok = Classroom.Class.leave(o, c)
-
                 {:reply, %{type: :ok}, Map.update!(state, :at, &(&1 = {owner, class_name}))}
 
               _ ->
@@ -199,7 +188,19 @@ defmodule Classroom.Connection do
   @impl true
   # TODO change _
   def handle_call("get_enrolled_class", _, state = %{identity: :user}) do
-    {:reply, %{result: Classroom.ClassStore.get_subscribed_class()}, state}
+    result = Classroom.ClassStore.get_subscribed_class()
+    |> Enum.map(&(%{
+        sub_number: Classroom.ClassStore.get_subscribers(&1.owner, &1.class_name),
+        joined_number:
+          case :sys.get_state(:registry)[{&1.owner, &1.class_name}] do
+            nil -> []
+            _ -> Classroom.Class.get_session_user(&1.owner, &1.class_name)
+          end,
+        owner: &1.owner,
+        class_name: &1.class_name}))
+    |> Enum.map(&(Map.update!(&1, :sub_number, fn num -> length(num) end)))
+    |> Enum.map(&(Map.update!(&1, :joined_number, fn num -> length(num) end)))
+    {:reply, %{result: result}, state}
   end
 
   @impl true
@@ -212,6 +213,20 @@ defmodule Classroom.Connection do
   # TODO change _
   def handle_call("get_session_user", _, state = %{at: {owner, class_name}}) do
     {:reply, %{result: Classroom.Class.get_session_user(owner, class_name)}, state}
+  end
+
+  @impl true
+  def handle_call("get_student_names_of_a_class",
+      %{"owner" => owner, "class_name" => class_name},
+      state = %{identity: :user}) do
+    {:reply, %{result: %{
+      subed: Classroom.ClassStore.get_subscribers(owner, class_name),
+      joined:
+        case :sys.get_state(:registry)[{owner, class_name}] do
+          nil -> []
+          _ -> Classroom.Class.get_session_user(owner, class_name)
+        end
+    }}, state}
   end
 
   @impl true
