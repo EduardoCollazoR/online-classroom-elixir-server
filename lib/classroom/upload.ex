@@ -49,6 +49,7 @@ defmodule Classroom.Upload do
   end
 
   post "/upload" do
+    IO.puts "reach"
     {status, body} =
       case conn.body_params do
         %{"data" => data, "timestamp" => timestamp, "username" => u, "password" => p} ->

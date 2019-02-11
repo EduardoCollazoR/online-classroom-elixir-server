@@ -39,3 +39,32 @@ defmodule Classroom.Whiteboard do
     {:noreply, state}
   end
 end
+
+# def init(_args) do
+#   {:ok, _} = :dets.open_file(__MODULE__, file: 'drawer.dets')
+#   {:ok, nil}
+# end
+
+# def handle_call({:check_password, username, password}, _from, nil) do
+#   case :dets.lookup(__MODULE__, username) do
+#     [{_, ^password}] ->
+#       {:reply, true, nil}
+
+#     [{_, _wrong_password}] ->
+#       {:reply, false, nil}
+
+#     [] ->
+#       {:reply, false, nil}
+#   end
+# end
+
+# def handle_call({:register, username, password}, _from, nil) do
+#   case :dets.lookup(__MODULE__, username) do
+#     [] ->
+#       :ok = :dets.insert(__MODULE__, {username, password})
+#       {:reply, :ok, nil}
+
+#     [_record] ->
+#       {:reply, :error, nil}
+#   end
+# end
