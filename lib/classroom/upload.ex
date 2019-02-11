@@ -77,16 +77,18 @@ defmodule Classroom.Upload do
   end
 
   defp get_no_repeat_filepath(path, filename, i) do
-    IO.puts filename
-    filename =
+    new_filename =
       if i > 0 do
-        "#{filename}(#{i})"
+        {dot_index, _} = :binary.match filename, "."
+        first = String.slice(filename, 0..(dot_index-1))
+        second = String.slice(filename, (dot_index+1)..-1)
+        first <> " (#{i})." <> second
       else
         filename
       end
-    case File.exists?("#{path}#{filename}") do # path <> filename
+    case File.exists?("#{path}#{new_filename}") do # path <> filename
       true -> get_no_repeat_filepath(path, filename, i+1)
-      false -> "#{path}#{filename}"
+      false -> "#{path}#{new_filename}"
     end
   end
 
