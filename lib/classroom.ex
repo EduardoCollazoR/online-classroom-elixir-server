@@ -6,30 +6,6 @@ defmodule Classroom do
   def start(_type, _args) do
     port = 8500
 
-    # routes = [
-    #   {
-    #     :_,
-    #     [
-    #       {"/", Classroom.User, nil}
-    #     ]
-    #   }
-    # ]
-
-    # router = :cowboy_router.compile(routes)
-
-    # {:ok, _} =
-    #   :cowboy.start_clear(
-    #     :http,
-    #     [port: port],
-    #     %{
-    #       env: %{
-    #         dispatch: router
-    #       }
-    #     }
-    #   )
-
-    # Application.ensure_all_started(:gun)
-
     Classroom.Websocket.start(port, Classroom.Connection, nil)
 
     Logger.info("Listening on port #{port}")
@@ -41,7 +17,7 @@ defmodule Classroom do
       Classroom.ActiveClasses,
       #      Classroom.Whiteboard,
       {Classroom.ClassStore, classes: []},
-      {Plug.Cowboy, scheme: :http, plug: Classroom.Upload, options: [port: 8888]}
+      {Plug.Cowboy, scheme: :http, plug: Classroom.Upload, options: [port: 8600]}
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one)

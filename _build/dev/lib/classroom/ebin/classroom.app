@@ -1,6 +1,6 @@
 {application,classroom,
              [{applications,[kernel,stdlib,elixir,logger,poison,cowboy,
-                             mongooseice,gun,plug,plug_cowboy]},
+                             mongooseice,gun,plug,plug_cowboy,cors_plug]},
               {description,"classroom"},
               {modules,['Elixir.Classroom','Elixir.Classroom.ActiveClasses',
                         'Elixir.Classroom.ActiveClasses.Registry',

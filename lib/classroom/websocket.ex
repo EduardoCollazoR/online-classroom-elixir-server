@@ -11,10 +11,9 @@ defmodule Classroom.Websocket do
          {"/", __MODULE__, {mod, args}}
        ]}
     ]
-
     router = :cowboy_router.compile(routes)
-
     :cowboy.start_clear(:http, [port: port], %{env: %{dispatch: router}})
+    # Application.ensure_all_started(:gun)
   end
 
   def init(req, params) do
