@@ -22,6 +22,12 @@ defmodule Classroom.Connection do
   end
 
   @impl true
+  # TODO change _
+  def handle_info({:notifly_change, filelist}, state = %{identity: :user}) do
+    {:event, :drawer_item_change, %{result: filelist}, state}
+  end
+
+  @impl true
   def handle_info(msg_type, state) do
     Logger.debug("Server sending message to invalid client, msg_type: #{msg_type}")
     {:noreply, state}
@@ -227,6 +233,12 @@ defmodule Classroom.Connection do
           _ -> Classroom.Class.get_session_user(owner, class_name)
         end
     }}, state}
+  end
+
+  @impl true
+  def handle_call("get_filenames_in_drawer", _, state = %{identity: :user}) do
+    {:ok, self_name} = Classroom.ActiveUsers.find_user_by_pid(self())
+    {:reply, %{result: Classroom.DrawerStore.get_all_filename(self_name)}, state}
   end
 
   @impl true

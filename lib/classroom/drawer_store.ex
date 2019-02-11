@@ -9,8 +9,8 @@ defmodule Classroom.DrawerStore do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
 
-  def notifly_upload(username, path, filename) do
-    GenServer.cast(__MODULE__, {:notifly_upload, username, path, filename})
+  def notifly_change(username) do
+    GenServer.cast(__MODULE__, {:notifly_change, username})
   end
 
   def get_all_filename(username) do
@@ -33,17 +33,14 @@ defmodule Classroom.DrawerStore do
     {:ok, nil}
   end
 
-  def handle_cast({:notifly_upload, username, path, filename}, _from, nil) do
-    user_pid = Classroom.ActiveUsers.find_pid_by_user(username)
-    send user_pid, {:notifly_upload, path, filename}
+  def handle_cast({:notifly_change, username}, nil) do
+    {:ok, user_pid} = Classroom.ActiveUsers.find_pid_by_user(username)
+    send user_pid, {:notifly_change, return_all_file_list(username)}
     {:noreply, nil}
   end
 
   def handle_call({:get_all_filename, username}, _from, nil) do
-    {:reply,
-      Path.wildcard(Path.expand("~/tmp_upload/#{username}/*.*")) # do not support sub-directory
-      |> Enum.map(&Path.basename/1),
-    nil}
+    {:reply, return_all_file_list(username), nil}
   end
 
   def handle_call({:get_file_data, path, filename}, _from, nil) do
@@ -54,20 +51,18 @@ defmodule Classroom.DrawerStore do
     path = "#{Path.expand("~/tmp_upload")}/#{share_target}/"
     File.mkdir_p! path
 
-    filepath = get_no_repeat_filepath(path, data.filename, 0)
+    # filepath = get_no_repeat_filepath(path, data.filename, 0)
     #...
     {:reply, :ok, nil}
   end
 
   def handle_call({:delete, path, filename, username}, _from, nil) do
-    case :dets.lookup(__MODULE__, username) do
-      [] ->
-        :ok = :dets.insert(__MODULE__, {username, password})
-        {:reply, :ok, nil}
+    {:reply, :ok, nil}
+  end
 
-      [_record] ->
-        {:reply, :error, nil}
-    end
+  defp return_all_file_list(username) do
+    Path.wildcard(Path.expand("~/tmp_upload/#{username}/*.*")) # do not support sub-directory
+    |> Enum.map(&Path.basename/1)
   end
 
 end

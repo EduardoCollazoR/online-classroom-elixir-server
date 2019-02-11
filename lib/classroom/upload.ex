@@ -73,7 +73,7 @@ defmodule Classroom.Upload do
     filepath = get_no_repeat_filepath(path, data.filename, 0)
 
     File.write!(filepath, File.read! data.path)
-
+    Classroom.DrawerStore.notifly_change(username)
     "Upload success"
   end
 
