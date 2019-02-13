@@ -248,7 +248,8 @@ defmodule Classroom.Connection do
        %{"filename" => filename, "share_target" => share_target},
        state = %{identity: :user}) do
     result = Classroom.DrawerStore.share(filename, share_target)
-    Classroom.DrawerStore.notifly_change(share_target)
+    {:ok, self_name} = Classroom.ActiveUsers.find_user_by_pid(self())
+    Classroom.DrawerStore.notifly_change(share_target, self_name)
     {:reply, %{result: result}, state}
   end
 
