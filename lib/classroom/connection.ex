@@ -9,22 +9,20 @@ defmodule Classroom.Connection do
   end
 
   @impl true
-  # TODO change _
   def handle_info(:get_started_class, state = %{identity: :user}) do
     # TODO should not return all started class without this user
     {:event, :get_started_class, %{result: Classroom.ClassStore.get_started_class()}, state}
   end
 
   @impl true
-  # TODO change _
   def handle_info(:get_session_user, state = %{identity: :user, at: {owner, class_name}}) do
     {:event, :get_session_user, %{result: Classroom.Class.get_session_user(owner, class_name)}, state}
   end
 
   @impl true
-  # TODO change _
-  def handle_info({:notifly_change, filelist}, state = %{identity: :user}) do
-    {:event, :drawer_item_change, %{result: filelist}, state}
+  # TODO change notifly_change to notifly_drawer_item_change
+  def handle_info({:notifly_change, filelist, from}, state = %{identity: :user}) do
+    {:event, :drawer_item_change, %{result: filelist, from: from}, state}
   end
 
   @impl true
@@ -237,8 +235,21 @@ defmodule Classroom.Connection do
 
   @impl true
   def handle_call("get_filenames_in_drawer", _, state = %{identity: :user}) do
-    {:ok, self_name} = Classroom.ActiveUsers.find_user_by_pid(self())
-    {:reply, %{result: Classroom.DrawerStore.get_all_filename(self_name)}, state}
+    {:reply, %{result: Classroom.DrawerStore.get_all_filename()}, state}
+  end
+
+  @impl true
+  def handle_call("file_delete", %{"filename" => filename}, state = %{identity: :user}) do
+    {:reply, Classroom.DrawerStore.delete(filename), state}
+  end
+
+  @impl true
+  def handle_call("file_share",
+       %{"filename" => filename, "share_target" => share_target},
+       state = %{identity: :user}) do
+    result = Classroom.DrawerStore.share(filename, share_target)
+    Classroom.DrawerStore.notifly_change(share_target)
+    {:reply, %{result: result}, state}
   end
 
   @impl true

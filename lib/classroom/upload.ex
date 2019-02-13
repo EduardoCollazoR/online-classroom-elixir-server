@@ -48,8 +48,22 @@ defmodule Classroom.Upload do
     send_resp(conn, status, body)
   end
 
+  get "/download/:username/:password/:filename" do
+    case Classroom.UserStore.valid_password?(username, password) do
+      true -> process_send(conn, username, filename)
+      false -> send_resp(conn, 422, "Invalid username and password")
+    end
+  end
+
+  defp process_send(conn, username, filename) do
+    path = "#{Path.expand("~/tmp_upload")}/#{username}/#{filename}"
+    conn
+    |> put_resp_content_type("application/octet-stream")
+    # |> send_file(200, path)
+    |> send_resp(200, File.read!(path))
+  end
+
   post "/upload" do
-    IO.puts "reach"
     {status, body} =
       case conn.body_params do
         %{"data" => data, "timestamp" => timestamp, "username" => u, "password" => p} ->
@@ -59,7 +73,7 @@ defmodule Classroom.Upload do
           end
 
         _ ->
-          {{422, "Invalid upload format"}}
+          {422, "Invalid upload format"}
       end
       send_resp(conn, status, body)
   end
