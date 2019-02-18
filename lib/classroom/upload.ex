@@ -58,9 +58,10 @@ defmodule Classroom.Upload do
   defp process_send(conn, username, filename) do
     path = "#{Path.expand("~/tmp_upload")}/#{username}/#{filename}"
     conn
-    |> put_resp_content_type("application/octet-stream")
-    # |> send_file(200, path)
-    |> send_resp(200, File.read!(path))
+    # |> put_resp_content_type("application/octet-stream")
+    |> put_resp_content_type(MIME.from_path(path))
+    |> send_file(200, path)
+    # |> send_resp(200, File.read!(path))
   end
 
   post "/upload" do
