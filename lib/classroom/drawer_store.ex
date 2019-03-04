@@ -57,8 +57,11 @@ defmodule Classroom.DrawerStore do
     file_path = "#{path}/#{owner_name}/#{filename}"
     case File.exists?(file_path) do
       true -> File.rm(file_path)
+        {:reply, %{result: :ok, files: return_all_file_list(owner_name)}, path}
+
+      false ->
+        {:reply, %{result: :error, reason: :already_deleted}, path}
     end
-    {:reply, %{result: :ok, files: return_all_file_list(owner_name)}, path}
   end
 
   defp return_all_file_list(username) do

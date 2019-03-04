@@ -19,7 +19,7 @@ defmodule Classroom.ActiveClasses.Registry do
     GenServer.cast(:registry, {:unregister_name, class_name})
   end
 
-  def send_name(class_name, message) do
+  def send(class_name, message) do
     case whereis_name(class_name) do
       :undefined ->
         {:badarg, {class_name, message}}

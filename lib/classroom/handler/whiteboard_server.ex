@@ -7,8 +7,8 @@ defmodule Classroom.Server.Whiteboard do
 
   @impl true
   def handle_info(:draw_event, [target, lines], state = %{identity: :user}) do
-    Logger.info("#{inspect self} received draw_event for whiteboard: #{target}")
-    {:event, "whiteboard_draw_" + target, lines, state}
+    # Logger.info("#{inspect self()} received draw_event for whiteboard: #{target}")
+    {:event, "whiteboard_draw_" <> target, lines, state}
   end
 
   @impl true
@@ -29,7 +29,7 @@ defmodule Classroom.Server.Whiteboard do
   def handle_cast(
       "draw",
       %{"target" => target, "lines" => lines},
-      state = %{at: {owner, class_name}}
+      state = %{at: {_owner, _class_name}}
     ) do
     :ok = Classroom.Whiteboard.draw(target, lines)
     {:noreply, state}
@@ -37,7 +37,7 @@ defmodule Classroom.Server.Whiteboard do
 
   @impl true
   def handle_cast(msg_type, _params, state) do
-    Logger.info("Whiteboard server received invalid CAST message, msg_type: #{msg_type} #{inspect _params}")
+    Logger.info("Whiteboard server received invalid CAST message, msg_type: #{msg_type} #{"inspect _params"}")
     {:noreply, state} # use stop in production
   end
 
@@ -65,9 +65,7 @@ defmodule Classroom.Server.Whiteboard do
 
   @impl true
   def handle_call("connect", target, state = %{identity: :user}) do
-    {:ok, self} = Classroom.ActiveUsers.find_user_by_pid(self())
-
-    case Classroom.ActiveWhiteboard.Registry.whereis_name({target}) do
+    case Classroom.ActiveWhiteboard.Registry.whereis_name({:whiteboard, target}) do
       :undefined ->
         {:reply, %{type: :error, reason: :pending}, state}
 

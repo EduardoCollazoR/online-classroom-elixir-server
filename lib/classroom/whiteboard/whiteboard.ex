@@ -1,6 +1,6 @@
 defmodule Classroom.Whiteboard do
   use GenServer
-  import Logger
+  require Logger
 
   # API
 
@@ -22,17 +22,17 @@ defmodule Classroom.Whiteboard do
   end
 
   def draw(owner, lines) do
-    Logger.info(inspect via_tuple(owner))
     GenServer.cast(via_tuple(owner), {:draw, self(), lines}) # FIX: cannot receive below
   end
 
   defp via_tuple(owner) do
     # {:via, module_name, term}
-    {:via, Classroom.ActiveWhiteboard.Registry, {owner}}
+    {:via, Classroom.ActiveWhiteboard.Registry, {:whiteboard, owner}}
   end
 
   # Server
 
+  @impl true
   def init(args) do
     # WIP: convert this: %{pid => %{}}
     # to %{clients: [], lines: []}
@@ -42,10 +42,11 @@ defmodule Classroom.Whiteboard do
     {:ok, %{owner: owner, owner_pid: owner_pid, clients: [], lines: []}}
   end
 
+  @impl true
   def handle_info({:DOWN, _, :process, pid, _}, state) do
     case pid == state.owner_pid do
       true ->
-        Classroom.ActiveWhiteboard.Registry.unregister_name({state.owner})
+        Classroom.ActiveWhiteboard.Registry.unregister_name({:whiteboard, state.owner})
 
       false ->
         send_updated_state_to_all(state)
@@ -54,6 +55,7 @@ defmodule Classroom.Whiteboard do
   end
 
   # connect
+  @impl true
   def handle_call({:connect, pid}, _from, state) do
     case Enum.member?(state.clients, pid) do
       true ->
@@ -70,12 +72,14 @@ defmodule Classroom.Whiteboard do
   end
 
   # disconnect
+  @impl true
   def handle_call({:leave, pid}, _from, state) do
     new_state = Map.update!(state, :clients, fn clients -> List.delete(clients, pid) end)
     send_updated_state_to_all(new_state)
     {:reply, :ok, new_state}
   end
 
+  @impl true
   def handle_call(:get_session_user, _from, state) do
     {:reply,
      state
@@ -84,30 +88,34 @@ defmodule Classroom.Whiteboard do
      |> Enum.map(fn {_, user} -> user end), state}
   end
 
-  # def handle_cast(_, state) do
-  #   Logger.info("reach here")
-  #   {:noreply, state}
-  # end
+  @impl true
+  # draw function for owner
+  def handle_cast({:draw, owner_pid, lines}, state = %{owner_pid: owner_pid}) do
+    send_draw(state.owner, owner_pid, state.clients, lines)
 
-  # # draw function for owner
-  # def handle_cast({:draw, owner_pid, lines}, state = %{owner: owner_pid}) do
-  #   Logger.info("received draw")
-  #   Enum.each(state.clients, fn client_pid ->
-  #     Logger.info("sending whiteboard #{state.owner} to #{client_pid}")
-  #     send(client_pid, [:whiteboard_server, [:draw_event, [state.owner, lines]]])
-  #   end)
-  #   {:noreply, Map.update!(state, :lines, fn old_lines -> [lines | old_lines] end)}
-  # end
+    {:noreply, Map.update!(state, :lines, fn old_lines -> [lines | old_lines] end)}
+  end
 
-  # def handle_cast({:draw, _, _}, state) do
-  #   Logger.info("received draw2")
-  #   Logger.info(inspect state)
-  #   {:noreply, state}
-  # end
+  @spec send_draw(String.t(), pid(), [term()], [map()]) :: :ok
+  defp send_draw(whiteboard, from, clients, lines) do
+    Enum.each(clients, fn to_pid ->
+      if to_pid != from do
+        Logger.info("sending draw of {whiteboard: #{whiteboard}} from: #{inspect from},to: #{inspect to_pid}")
+        send(to_pid, [:whiteboard_server, [:draw_event, [whiteboard, lines]]])
+      end
+    end)
+    :ok
+  end
+
+  @impl true
+  def handle_cast({:draw, non_owner_pid, lines}, state) do
+    Logger.info("received draw from non-owner for whiteboard: #{inspect non_owner_pid}")
+    {:noreply, state}
+  end
 
   # functions
 
-  defp send_updated_state_to_all(state) do
+  defp send_updated_state_to_all(_state) do
     # state |> Map.keys() |> Enum.map(fn pid -> send(pid, :get_session_user) end)
   end
 
