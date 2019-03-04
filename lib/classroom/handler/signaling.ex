@@ -2,13 +2,6 @@ defmodule Classroom.Signaling do
   use Classroom.Signaling.Protocol
   require Logger
 
-  '''
-  TODO
-
-  -need protocol
-  -ensure all functions are called correctly (from other modules or from client)
-  '''
-
   @impl true
   def handle_info(:update_exist_peer_conn, exist_peer_conn, state = %{identity: :user, at: {owner, class_name}}) do
     {:event, :get_exist_peer_conn, %{result: exist_peer_conn}, state}
@@ -93,7 +86,8 @@ defmodule Classroom.Signaling do
   @impl true
   def handle_call(msg_type, _params, state) do
     Logger.info("Signaling server received invalid call message, msg_type: #{msg_type}")
-    {:noreply, state} # use stop in production
+    # {:noreply, state} # use stop in production
+    {:reply, %{type: :unexpected}, state}
   end
 
 end

@@ -5,7 +5,7 @@ defmodule Classroom.Connection do
   @impl true
   def init(_opts) do
     Logger.info("A client has connected #{inspect(self())}")
-    {:ok, %{identity: :guest, at: :no, user_data: %{}}}
+    {:ok, %{identity: :guest, at: :no, user_data: %{}, connected_whiteboard: []}}
   end
 
   @impl true
@@ -253,6 +253,13 @@ defmodule Classroom.Connection do
     {:reply, %{result: result}, state}
   end
 
+  # TODO solve repeated login
+  @impl true
+  def handle_call("login", _, state = %{identity: :user}) do
+    # {:stop, state}
+    {:reply, %{type: :unexpected}, state}
+  end
+
   @impl true
   def handle_call(msg_type, _, state) do
     Logger.info("Unexpected call action msg_type: #{inspect(msg_type)}")
@@ -268,12 +275,3 @@ defmodule Classroom.Connection do
     {:reply, %{type: :unexpected}, state}
   end
 end
-{
-  :event,
-  %{result: ["dev"]},
-  %{
-    at: {"dev", "test"},
-    identity: :user,
-    user_data: %{}
-  }
-}
