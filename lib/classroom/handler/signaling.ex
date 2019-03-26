@@ -33,6 +33,11 @@ defmodule Classroom.Signaling do
   end
 
   @impl true
+  def handle_info(:action, [action, sender_name], state = %{identity: :user}) do
+    {:event, :action, %{action: action, from: sender_name}, state}
+  end
+
+  @impl true
   def handle_info(msg_type, _params, state) do
     Logger.info("Signaling server sending message to invalid client, msg_type: #{msg_type}")
     {:noreply, state} # use stop in production
@@ -74,6 +79,12 @@ defmodule Classroom.Signaling do
       %{"candidate" => candidate, "to" => to, "stream_owner" => stream_owner},
       state = %{at: {owner, class_name}}) do
     :ok = Classroom.Class.handle_candidate(owner, class_name, stream_owner, candidate, to)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast("action", action, state = %{at: {owner, class_name}}) do
+    :ok = Classroom.Class.handle_action(owner, class_name, action)
     {:noreply, state}
   end
 

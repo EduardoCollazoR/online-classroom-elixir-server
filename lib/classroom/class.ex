@@ -58,6 +58,10 @@ defmodule Classroom.Class do
     GenServer.call(via_tuple(owner, class_name), {:handle_candidate, stream_owner, candidate, to, self()})
   end
 
+  def handle_action(owner, class_name, action) do
+    GenServer.call(via_tuple(owner, class_name), {:handle_action, action, self()})
+  end
+
   defp via_tuple(owner, class_name) do
     # {:via, module_name, term}
     {:via, Classroom.ActiveClasses.Registry, {owner, class_name}}
@@ -71,8 +75,15 @@ defmodule Classroom.Class do
   end
 
   def handle_info({:DOWN, _, :process, pid, _}, state) do
-    update_class_state_to_clients(state)
+    leave_class(pid, state)
     {:noreply, Map.delete(state, pid)}
+  end
+
+  def handle_call({:leave, pid}, _from, state) do
+    leave_class(pid, state)
+    %{ref: ref} = state |> Map.fetch!(pid)
+    Process.demonitor(ref)
+    {:reply, :ok, Map.delete(state, pid)}
   end
 
   def handle_call({:join, pid}, _from, state) do
@@ -81,8 +92,9 @@ defmodule Classroom.Class do
         {:reply, [:reject, :already_joined], state}
 
       false ->
-        Process.monitor(pid)
-        new_state = Map.put(state, pid, %{pc: false})
+        ref = Process.monitor(pid)
+        {:ok, self_name} = Classroom.ActiveUsers.find_user_by_pid(pid)
+        new_state = Map.put(state, pid, %{pc: false, self_name: self_name, ref: ref})
 
         send(pid, [:signaling, [:update_exist_peer_conn, get_exist_peer_conn(new_state)]])
 
@@ -92,11 +104,6 @@ defmodule Classroom.Class do
 
         {:reply, :ok, new_state}
     end
-  end
-
-  def handle_call({:leave, pid}, _from, state) do
-    update_class_state_to_clients(Map.delete(state, pid))
-    {:reply, :ok, Map.delete(state, pid)}
   end
 
   def handle_call(:get_session_user, _from, state) do
@@ -209,16 +216,44 @@ defmodule Classroom.Class do
     {:reply, :ok, state}
   end
 
+  def handle_call({:handle_action, action, sender_pid}, _from, state) do
+    {:ok, sender_name} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
+
+    broadcast_except_sender(state, sender_pid, [
+      :signaling, [
+        :action,
+        action,
+        sender_name
+    ]])
+
+    {:reply, :ok, state}
+  end
+
+  defp leave_class(pid, state) do
+    # send hangup to each remote peer connection
+    %{self_name: sender_name} = state |> Map.fetch!(pid)
+    Logger.info("#{sender_name} leaving class...")
+    broadcast_except_sender(state, pid, [
+      :signaling, [
+        :action,
+        "hangup",
+        sender_name
+    ]])
+
+    # notifly other clients when user exit
+    update_class_state_to_clients(Map.delete(state, pid))
+  end
+
   defp update_class_state_to_clients(state) do
     state |> Map.keys() |> Enum.map(fn pid -> send(pid, :get_session_user) end)
   end
 
-  # defp broadcast_except_sender(state, json, sender_pid) do
-  #   state
-  #   |> Map.keys()
-  #   |> Enum.filter(fn pid -> pid != sender_pid end)
-  #   |> Enum.map(fn pid -> send(pid, json) end)
-  # end
+  defp broadcast_except_sender(state, sender_pid, json) do
+    state
+    |> Map.keys()
+    |> Enum.filter(fn pid -> pid != sender_pid end)
+    |> Enum.map(fn pid -> send(pid, json) end)
+  end
 
   defp broadcast_to_pc_ready(state, joiner_pid) do
     {:ok, joiner} = Classroom.ActiveUsers.find_user_by_pid(joiner_pid)

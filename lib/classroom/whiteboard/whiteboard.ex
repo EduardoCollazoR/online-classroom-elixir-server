@@ -100,7 +100,7 @@ defmodule Classroom.Whiteboard do
   defp send_draw(whiteboard, from, clients, lines) do
     Enum.each(clients, fn to_pid ->
       if to_pid != from do
-        Logger.info("sending draw of {whiteboard: #{whiteboard}} from: #{inspect from},to: #{inspect to_pid}")
+        # Logger.info("sending draw of {whiteboard: #{whiteboard}} from: #{inspect from},to: #{inspect to_pid}")
         send(to_pid, [:whiteboard_server, [:draw_event, [whiteboard, lines]]])
       end
     end)
