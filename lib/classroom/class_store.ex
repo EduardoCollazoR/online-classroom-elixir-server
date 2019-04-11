@@ -50,9 +50,10 @@ defmodule Classroom.ClassStore do
   # Server
 
   # TODO change state format
-  def init(classes) do
+  def init(_args) do
+    # {:ok, _} = :dets.open_file(__MODULE__, file: 'classes.dets')
     # [ %{class_name, owner, subscriber: [], } ]
-    {:ok, classes}
+    {:ok, []}
   end
 
   # need class id as diff teacher can hv classes with name

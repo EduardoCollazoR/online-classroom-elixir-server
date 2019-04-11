@@ -13,8 +13,8 @@ defmodule Classroom.Whiteboard do
     GenServer.call(via_tuple(owner), {:connect, self()})
   end
 
-  def leave(owner) do
-    GenServer.call(via_tuple(owner), {:leave, self()})
+  def disconnect(owner) do
+    GenServer.call(via_tuple(owner), {:disconnect, self()})
   end
 
   def get_session_user(owner) do
@@ -47,11 +47,28 @@ defmodule Classroom.Whiteboard do
     case pid == state.owner_pid do
       true ->
         Classroom.ActiveWhiteboard.Registry.unregister_name({:whiteboard, state.owner})
+        {:noreply, Map.delete(state, pid)}
 
       false ->
-        send_updated_state_to_all(state)
+        new_state = Map.update!(state, :clients, fn clients -> List.delete(clients, pid) end)
+        send_updated_state_to_all(new_state)
+        {:noreply, new_state}
     end
-    {:noreply, Map.delete(state, pid)}
+  end
+
+  # disconnect
+  @impl true
+  def handle_call({:disconnect, pid}, _from, state) do
+    case pid == state.owner_pid do
+      true ->
+        Classroom.ActiveWhiteboard.Registry.unregister_name({:whiteboard, state.owner})
+        {:reply, :ok, Map.delete(state, pid)}
+
+      false ->
+        new_state = Map.update!(state, :clients, fn clients -> List.delete(clients, pid) end)
+        send_updated_state_to_all(new_state)
+        {:reply, :ok, new_state}
+    end
   end
 
   # connect
@@ -69,14 +86,6 @@ defmodule Classroom.Whiteboard do
 
         {:reply, new_state.lines, new_state}
     end
-  end
-
-  # disconnect
-  @impl true
-  def handle_call({:leave, pid}, _from, state) do
-    new_state = Map.update!(state, :clients, fn clients -> List.delete(clients, pid) end)
-    send_updated_state_to_all(new_state)
-    {:reply, :ok, new_state}
   end
 
   @impl true

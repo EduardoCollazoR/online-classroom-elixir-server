@@ -36,8 +36,29 @@ defmodule Classroom.Server.Whiteboard do
   end
 
   @impl true
+  def handle_cast("disconnect", target, state = %{identity: :user}) do
+    case Classroom.ActiveWhiteboard.Registry.whereis_name({:whiteboard, target}) do
+      :undefined ->
+        {:noreply, state}
+
+      _pid ->
+        case Classroom.Whiteboard.disconnect(target) do
+          [:reject, reason] ->
+            {:noreply, state}
+
+          lines ->
+            {:noreply,
+              Map.update!(state, :connected_whiteboard, fn cw ->
+                List.delete(cw, target) end
+              )
+            }
+        end
+    end
+  end
+
+  @impl true
   def handle_cast(msg_type, _params, state) do
-    Logger.info("Whiteboard server received invalid CAST message, msg_type: #{msg_type} #{"inspect _params"}")
+    Logger.info("Whiteboard server received invalid CAST message, msg_type: #{msg_type} #{"inspect state"}")
     {:noreply, state} # use stop in production
   end
 
