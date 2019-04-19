@@ -1,6 +1,6 @@
 # Classroom
 
-**TODO: Add description**
+**Description: To be added, for more please refer to [https://github.com/herbert1228/online-classroom-react.js-client](https://github.com/herbert1228/online-classroom-react.js-client)**
 
 ## Installation
 
