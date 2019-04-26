@@ -9,8 +9,8 @@ defmodule Classroom.DrawerStore do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
 
-  def notifly_change(username, from) do
-    GenServer.cast(__MODULE__, {:notifly_change, username, from})
+  def notify_change(username, from) do
+    GenServer.cast(__MODULE__, {:notify_change, username, from})
   end
 
   def get_all_filename() do
@@ -29,9 +29,9 @@ defmodule Classroom.DrawerStore do
     {:ok, Path.expand("~/tmp_upload")}
   end
 
-  def handle_cast({:notifly_change, username, from}, path) do
+  def handle_cast({:notify_change, username, from}, path) do
     {:ok, user_pid} = Classroom.ActiveUsers.find_pid_by_user(username)
-    send user_pid, {:notifly_change, return_all_file_list(username), from}
+    send user_pid, {:notify_change, return_all_file_list(username), from}
     {:noreply, path}
   end
 

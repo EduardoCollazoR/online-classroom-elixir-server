@@ -62,6 +62,22 @@ defmodule Classroom.Class do
     GenServer.call(via_tuple(owner, class_name), {:handle_action, action, self()})
   end
 
+  # def add_group(owner, class_name, group_id) do
+  #   GenServer.call(via_tuple(owner, class_name), {:add_group, group_id})
+  # end
+
+  # def get_groups(owner, class_name, group_id) do
+  #   GenServer.call(via_tuple(owner, class_name), {:get_groups})
+  # end
+
+  def change_group(owner, class_name, student, group) do
+    GenServer.call(via_tuple(owner, class_name), {:change_group, student, group})
+  end
+
+  def get_groups(owner, class_name) do
+    GenServer.call(via_tuple(owner, class_name), :get_groups)
+  end
+
   defp via_tuple(owner, class_name) do
     # {:via, module_name, term}
     {:via, Classroom.ActiveClasses.Registry, {owner, class_name}}
@@ -70,31 +86,40 @@ defmodule Classroom.Class do
   # Server
 
   def init(_args) do
-    # %{ pid => %{pc: true/false}}
-    {:ok, %{}}
+    # %{ users => %{pid => %{pc: false, self_name: self_name, ref: ref, mic: true, camera: true}},
+    #              group => [%{students: [], whiteboard_id: }]}
+    {:ok, %{users: %{}, groups: []}}
   end
 
   def handle_info({:DOWN, _, :process, pid, _}, state) do
     leave_class(pid, state)
-    {:noreply, Map.delete(state, pid)}
+    # {:noreply, Map.delete(state, pid)}
+    {:noreply, remove_user_from_state(state, pid)}
   end
 
   def handle_call({:leave, pid}, _from, state) do
     leave_class(pid, state)
-    %{ref: ref} = state |> Map.fetch!(pid)
+    %{ref: ref} = state |> Map.fetch!(:users) |> Map.fetch!(pid)
     Process.demonitor(ref)
-    {:reply, :ok, Map.delete(state, pid)}
+    # {:reply, :ok, Map.delete(state, pid)}
+    {:reply, :ok, remove_user_from_state(state, pid)}
   end
 
   def handle_call({:join, pid}, _from, state) do
-    case Map.has_key?(state, pid) do
+    case state |> Map.fetch!(:users) |> Map.has_key?(pid) do
       true ->
         {:reply, [:reject, :already_joined], state}
 
       false ->
         ref = Process.monitor(pid)
         {:ok, self_name} = Classroom.ActiveUsers.find_user_by_pid(pid)
-        new_state = Map.put(state, pid, %{pc: false, self_name: self_name, ref: ref})
+        {_, new_state} =
+          Kernel.get_and_update_in(state, [:users, pid],
+            &{&1, %{pc: false, self_name: self_name, ref: ref, mic: true, camera: true, group: nil}}
+          )
+          # Map.put(state, pid,
+          #   %{pc: false, self_name: self_name, ref: ref, mic: true, camera: true}
+          # )
 
         send(pid, [:signaling, [:update_exist_peer_conn, get_exist_peer_conn(new_state)]])
 
@@ -109,18 +134,13 @@ defmodule Classroom.Class do
   def handle_call(:get_session_user, _from, state) do
     {:reply,
      state
+     |> Map.get(:users)
      |> Map.keys()
-     |> Enum.map(fn pid -> Classroom.ActiveUsers.find_user_by_pid(pid) end)
-     |> Enum.map(fn {_, user} -> user end), state}
-  end
-
-  defp get_exist_peer_conn(state) do
-    exist_peer_conn(state)
-    |> Enum.map(fn pid ->
-        case Classroom.ActiveUsers.find_user_by_pid(pid) do
-          {:ok, u} -> u
-        end
-      end)
+     |> Enum.map(fn pid ->
+        {_, user} = Classroom.ActiveUsers.find_user_by_pid(pid)
+        user
+      end),
+    state}
   end
 
   # Signaling
@@ -130,6 +150,7 @@ defmodule Classroom.Class do
     new_state = update_pc_in_state(sender_pid, state)
 
     new_state
+    |> Map.get(:users)
     |> Map.keys()
     |> Enum.filter(fn pid -> pid != sender_pid end) # broadcast to all besides sender
     |> Enum.map(fn pid -> send(
@@ -174,13 +195,16 @@ defmodule Classroom.Class do
   def handle_call({:handle_offer, stream_owner, offer, to, sender_pid}, _from, state) do
     {:ok, target} = Classroom.ActiveUsers.find_pid_by_user(to)
     {:ok, sender_name} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
+    mic = state[:users][sender_pid][:mic]
+    camera = state[:users][sender_pid][:camera]
 
     send(target, [
       :signaling, [
         :offer,
         stream_owner,
         offer,
-        sender_name
+        sender_name,
+        [mic, camera]
     ]])
 
     {:reply, :ok, state}
@@ -216,6 +240,7 @@ defmodule Classroom.Class do
     {:reply, :ok, state}
   end
 
+  # hangup, toggleMic, toggleCamera
   def handle_call({:handle_action, action, sender_pid}, _from, state) do
     {:ok, sender_name} = Classroom.ActiveUsers.find_user_by_pid(sender_pid)
 
@@ -226,12 +251,77 @@ defmodule Classroom.Class do
         sender_name
     ]])
 
-    {:reply, :ok, state}
+    case action do
+      "hangup" ->
+        {:reply, :ok, update_pc_in_state(sender_pid, state)}
+      "toggleCamera" ->
+        {:reply, :ok, Kernel.update_in(state, [:users, sender_pid, :camera], &(!&1))}
+      "toggleMic" ->
+        {:reply, :ok, Kernel.update_in(state, [:users, sender_pid, :mic], &(!&1))}
+    end
+  end
+
+  def handle_call({:change_group, student, group}, _from, state) do
+    {:ok, s_pid} = Classroom.ActiveUsers.find_pid_by_user(student)
+    originalGroup = state.users[s_pid].group
+
+    new_state =
+      case group do
+        "All" ->
+          new_s = put_in(state, [:users, s_pid, :group], nil)
+          send(s_pid, [
+            :class_status_server, [
+              :group_change_event,
+              %{group: nil, members: []}
+          ]])
+          new_s
+
+        _ ->
+          new_s = put_in(state, [:users, s_pid, :group], group)
+          notify_group(
+            group,
+            :group_change_event,
+            %{group: group, members: get_group_members(group, new_s)},
+            new_s
+          )
+          new_s
+      end
+
+    case originalGroup do
+      nil -> nil
+      "All" -> nil
+      _ ->
+        notify_group(
+          originalGroup,
+          :group_change_event,
+          %{group: originalGroup, members: get_group_members(originalGroup, new_state)},
+          new_state
+        )
+    end
+
+    {:reply, :ok, new_state}
+  end
+
+  def handle_call(:get_groups, _from, state) do
+    groups =
+      state.users
+      |> Enum.map(fn {_, b} ->
+        case b.group do
+          nil ->
+            nil
+
+          _ ->
+            %{status: b.group, id: b.self_name, name: b.self_name}
+        end
+      end)
+      |> Enum.filter(fn each -> each != nil end)
+
+    {:reply, groups, state}
   end
 
   defp leave_class(pid, state) do
     # send hangup to each remote peer connection
-    %{self_name: sender_name} = state |> Map.fetch!(pid)
+    %{self_name: sender_name} = state |> Map.fetch!(:users) |> Map.fetch!(pid)
     Logger.info("#{sender_name} leaving class...")
     broadcast_except_sender(state, pid, [
       :signaling, [
@@ -240,16 +330,31 @@ defmodule Classroom.Class do
         sender_name
     ]])
 
-    # notifly other clients when user exit
-    update_class_state_to_clients(Map.delete(state, pid))
+    # notify other clients when a user exit
+    update_class_state_to_clients(remove_user_from_state(state, pid))
   end
 
   defp update_class_state_to_clients(state) do
-    state |> Map.keys() |> Enum.map(fn pid -> send(pid, :get_session_user) end)
+    state.users
+    |> Map.keys()
+    |> Enum.map(fn pid -> send(pid, :get_session_user) end)
+  end
+
+  defp notify_group(group, event_type, json, state) do
+    get_group_members(group, state)
+    |> Enum.each(fn member ->
+      {:ok, pid} = Classroom.ActiveUsers.find_pid_by_user(member)
+      send(pid, [
+        :class_status_server, [
+          event_type,
+          json
+      ]])
+    end)
   end
 
   defp broadcast_except_sender(state, sender_pid, json) do
     state
+    |> Map.get(:users)
     |> Map.keys()
     |> Enum.filter(fn pid -> pid != sender_pid end)
     |> Enum.map(fn pid -> send(pid, json) end)
@@ -279,16 +384,57 @@ defmodule Classroom.Class do
   end
 
   defp update_pc_in_state(pid, state) do
-    state |> update_in([pid, :pc], &(!&1))
+    state |> Kernel.update_in([:users, pid, :pc], &(!&1))
+  end
+
+  defp get_exist_peer_conn(state) do
+    exist_peer_conn(state)
+    |> Enum.map(fn pid ->
+        case Classroom.ActiveUsers.find_user_by_pid(pid) do
+          {:ok, u} -> u
+        end
+      end)
   end
 
   defp exist_peer_conn(state) do
     state
+    |> Map.get(:users)
     |> Enum.map(fn {k, v} ->
       if v.pc do
         k
       end
     end)
     |> Enum.filter(&(!is_nil(&1)))
+  end
+
+  defp remove_user_from_state(state, pid) do
+    group = state.users[pid].group
+
+    # remove_user_from_state
+    {_, new_state} = Kernel.pop_in(state, [:users, pid])
+
+    case group do
+      nil ->
+        nil
+
+      _ ->
+        # notify group member
+        notify_group(
+          group,
+          :group_change_event,
+          %{group: group, members: get_group_members(group, new_state)},
+          new_state
+        )
+    end
+
+    new_state
+  end
+
+  def get_group_members(group, state) do
+    state.users
+    |> Enum.reduce(%{}, fn {_pid, %{group: gp, self_name: sn}}, map ->
+      Map.update(map, gp, [sn], &[sn | &1])
+    end)
+    |> Map.get(group, [])
   end
 end

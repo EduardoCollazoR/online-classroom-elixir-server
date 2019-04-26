@@ -18,8 +18,8 @@ defmodule Classroom.Signaling do
   end
 
   @impl true
-  def handle_info(:offer, [stream_owner, offer, sender_name], state = %{identity: :user}) do
-    {:event, :offer, %{stream_owner: stream_owner, from: sender_name, offer: offer}, state}
+  def handle_info(:offer, [stream_owner, offer, sender_name, [mic, camera]], state = %{identity: :user}) do
+    {:event, :offer, %{stream_owner: stream_owner, from: sender_name, offer: offer, mic: mic, camera: camera}, state}
   end
 
   @impl true

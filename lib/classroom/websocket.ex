@@ -57,6 +57,12 @@ defmodule Classroom.Websocket do
       {:ok, ["whiteboard_call", id, type, params]} ->
         Classroom.Server.Whiteboard.handle_call(type, params, state) |> call_result(mod, id)
 
+      {:ok, ["class_status_cast", type, params]} ->
+        Classroom.Server.ClassStatus.handle_cast(type, params, state) |> cast_result(mod)
+
+      {:ok, ["class_status_call", id, type, params]} ->
+        Classroom.Server.ClassStatus.handle_call(type, params, state) |> call_result(mod, id)
+
       {:ok, "keep_alive"} ->
         {:ok, s}
 
@@ -75,6 +81,10 @@ defmodule Classroom.Websocket do
 
   def websocket_info([:whiteboard_server, [term, params]], {mod, state}) do
     Classroom.Server.Whiteboard.handle_info(term, params, state) |> info_result(mod)
+  end
+
+  def websocket_info([:class_status_server, [term, params]], {mod, state}) do
+    Classroom.Server.ClassStatus.handle_info(term, params, state) |> info_result(mod)
   end
 
   def websocket_info(term, {mod, state}) do

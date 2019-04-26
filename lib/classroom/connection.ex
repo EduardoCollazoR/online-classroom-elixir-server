@@ -20,8 +20,8 @@ defmodule Classroom.Connection do
   end
 
   @impl true
-  # TODO change notifly_change to notifly_drawer_item_change
-  def handle_info({:notifly_change, filelist, from}, state = %{identity: :user}) do
+  # TODO change notify_change to notify_drawer_item_change
+  def handle_info({:notify_change, filelist, from}, state = %{identity: :user}) do
     {:event, :drawer_item_change, %{result: filelist, from: from}, state}
   end
 
@@ -208,13 +208,11 @@ defmodule Classroom.Connection do
   end
 
   @impl true
-  # TODO change _
   def handle_call("get_started_class", _, state = %{identity: :user}) do
     {:reply, %{result: Classroom.ClassStore.get_started_class()}, state}
   end
 
   @impl true
-  # TODO change _
   def handle_call("get_session_user", _, state = %{at: {owner, class_name}}) do
     {:reply, %{result: Classroom.Class.get_session_user(owner, class_name)}, state}
   end
@@ -249,7 +247,7 @@ defmodule Classroom.Connection do
        state = %{identity: :user}) do
     result = Classroom.DrawerStore.share(filename, share_target)
     {:ok, self_name} = Classroom.ActiveUsers.find_user_by_pid(self())
-    Classroom.DrawerStore.notifly_change(share_target, self_name)
+    Classroom.DrawerStore.notify_change(share_target, self_name)
     {:reply, %{result: result}, state}
   end
 
