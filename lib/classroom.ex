@@ -17,6 +17,8 @@ defmodule Classroom do
       Classroom.ActiveClasses,
       Classroom.ActiveWhiteboard.Registry,
       Classroom.ActiveWhiteboard,
+      Classroom.ActiveGroupWhiteboard.Registry,
+      Classroom.ActiveGroupWhiteboard,
       Classroom.DrawerStore,
       {Classroom.ClassStore, classes: []},
       {Plug.Cowboy, scheme: :http, plug: Classroom.Upload, options: [port: 8600]}

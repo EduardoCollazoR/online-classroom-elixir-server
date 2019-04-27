@@ -7,7 +7,6 @@ defmodule Classroom.Server.ClassStatus do
 
   @impl true
   def handle_info(:group_change_event, json = %{group: group, members: member}, state = %{identity: :user}) do
-    IO.puts "#{inspect self()} received #{inspect json}"
     {:event, :group_status_change, json, state}
   end
 

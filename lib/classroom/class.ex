@@ -66,10 +66,6 @@ defmodule Classroom.Class do
   #   GenServer.call(via_tuple(owner, class_name), {:add_group, group_id})
   # end
 
-  # def get_groups(owner, class_name, group_id) do
-  #   GenServer.call(via_tuple(owner, class_name), {:get_groups})
-  # end
-
   def change_group(owner, class_name, student, group) do
     GenServer.call(via_tuple(owner, class_name), {:change_group, student, group})
   end
@@ -85,9 +81,19 @@ defmodule Classroom.Class do
 
   # Server
 
-  def init(_args) do
+  def init(args) do
+    [{owner, class_name}] = args
     # %{ users => %{pid => %{pc: false, self_name: self_name, ref: ref, mic: true, camera: true}},
     #              group => [%{students: [], whiteboard_id: }]}
+
+    {:ok, _} = Classroom.ActiveGroupWhiteboard.start({owner, class_name, "Group1"})
+    {:ok, _} = Classroom.ActiveGroupWhiteboard.start({owner, class_name, "Group2"})
+    {:ok, _} = Classroom.ActiveGroupWhiteboard.start({owner, class_name, "Group3"})
+
+    [] = Classroom.GroupWhiteboard.connect(owner, class_name, "Group1")
+    [] = Classroom.GroupWhiteboard.connect(owner, class_name, "Group2")
+    [] = Classroom.GroupWhiteboard.connect(owner, class_name, "Group3")
+
     {:ok, %{users: %{}, groups: []}}
   end
 
@@ -278,6 +284,7 @@ defmodule Classroom.Class do
 
         _ ->
           new_s = put_in(state, [:users, s_pid, :group], group)
+          # lines = Classroom.Whiteboard.connect({target}, s_pid)
           notify_group(
             group,
             :group_change_event,
@@ -360,28 +367,28 @@ defmodule Classroom.Class do
     |> Enum.map(fn pid -> send(pid, json) end)
   end
 
-  defp broadcast_to_pc_ready(state, joiner_pid) do
-    {:ok, joiner} = Classroom.ActiveUsers.find_user_by_pid(joiner_pid)
+  # defp broadcast_to_pc_ready(state, joiner_pid) do
+  #   {:ok, joiner} = Classroom.ActiveUsers.find_user_by_pid(joiner_pid)
 
-    exist_peer_conn(state)
-    |> Enum.map(fn u ->
-      case Classroom.ActiveUsers.find_pid_by_user(u) do
-        {:ok, pid} ->
-          send(pid, %{
-            type: :broadcast_message,
-            message: %{
-              type: :join,
-              stream_owner: u,
-              joiner: joiner
-            },
-            DEBUG: :broadcast_to_pc_ready
-          })
+  #   exist_peer_conn(state)
+  #   |> Enum.map(fn u ->
+  #     case Classroom.ActiveUsers.find_pid_by_user(u) do
+  #       {:ok, pid} ->
+  #         send(pid, %{
+  #           type: :broadcast_message,
+  #           message: %{
+  #             type: :join,
+  #             stream_owner: u,
+  #             joiner: joiner
+  #           },
+  #           DEBUG: :broadcast_to_pc_ready
+  #         })
 
-        _ ->
-          Logger.debug(Classroom.ActiveUsers.find_pid_by_user(u))
-      end
-    end)
-  end
+  #       _ ->
+  #         Logger.debug(Classroom.ActiveUsers.find_pid_by_user(u))
+  #     end
+  #   end)
+  # end
 
   defp update_pc_in_state(pid, state) do
     state |> Kernel.update_in([:users, pid, :pc], &(!&1))

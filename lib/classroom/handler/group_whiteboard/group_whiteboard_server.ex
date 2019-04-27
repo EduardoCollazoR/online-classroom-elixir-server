@@ -1,14 +1,14 @@
-defmodule Classroom.Server.Whiteboard do
-  use Classroom.Whiteboard.Protocol
+defmodule Classroom.Server.GroupWhiteboard do
+  use Classroom.GroupWhiteboard.Protocol
   require Logger
 
   # ----------
   # All connected clients receive these events
 
   @impl true
-  def handle_info(:draw_event, [target, lines], state = %{identity: :user}) do
+  def handle_info(:draw_event, [target, lines], state = %{identity: :user, at: {_owner, _class_name}}) do
     # Logger.info("#{inspect self()} received draw_event for whiteboard: #{target}")
-    {:event, "whiteboard_draw_" <> target, lines, state}
+    {:event, "group_whiteboard_draw_" <> target, lines, state}
   end
 
   # @impl true
@@ -18,7 +18,7 @@ defmodule Classroom.Server.Whiteboard do
 
   @impl true
   def handle_info(msg_type, _params, state) do
-    Logger.info("Whiteboard server sending message to invalid client, msg_type: #{msg_type}")
+    Logger.info("Group Whiteboard server sending message to invalid client, msg_type: #{msg_type}")
     {:noreply, state} # use stop in production
   end
 
@@ -28,21 +28,21 @@ defmodule Classroom.Server.Whiteboard do
   @impl true
   def handle_cast(
       "draw",
-      %{"target" => target, "lines" => lines},
-      state = %{at: {_owner, _class_name}}
+      %{"target" => group, "lines" => lines},
+      state = %{at: {owner, class_name}}
     ) do
-    :ok = Classroom.Whiteboard.draw(target, lines)
+    :ok = Classroom.GroupWhiteboard.draw(owner, class_name, group, lines)
     {:noreply, state}
   end
 
   @impl true
-  def handle_cast("disconnect", target, state = %{identity: :user}) do
-    case Classroom.ActiveWhiteboard.Registry.whereis_name({:whiteboard, target}) do
+  def handle_cast("disconnect", target, state = %{identity: :user, at: {owner, class_name}}) do
+    case Classroom.ActiveGroupWhiteboard.Registry.whereis_name({:group_whiteboard, owner, class_name, target}) do
       :undefined ->
         {:noreply, state}
 
       _pid ->
-        case Classroom.Whiteboard.disconnect(target) do
+        case Classroom.GroupWhiteboard.disconnect(owner, class_name, target) do
           [:reject, _reason] ->
             {:noreply, state}
 
@@ -65,33 +65,33 @@ defmodule Classroom.Server.Whiteboard do
   # ----------
   # async call
 
+  # @impl true
+  # def handle_call("start", _nil, state = %{identity: :user}) do
+  #   {:ok, target} = Classroom.ActiveUsers.find_user_by_pid(self())
+
+  #   case Classroom.ActiveGroupWhiteboard.start({target}) do
+  #     {:ok, _} ->
+  #       case Classroom.GroupWhiteboard.connect(target) do
+  #         [:reject, reason] ->
+  #           {:reply, %{type: :error, reason: reason}, state}
+
+  #         lines ->
+  #           {:reply, lines, state}
+  #         end
+
+  #     _ ->
+  #       {:reply, :error, state}
+  #   end
+  # end
+
   @impl true
-  def handle_call("start", _nil, state = %{identity: :user}) do
-    {:ok, target} = Classroom.ActiveUsers.find_user_by_pid(self())
-
-    case Classroom.ActiveWhiteboard.start({target}) do
-      {:ok, _} ->
-        case Classroom.Whiteboard.connect(target) do
-          [:reject, reason] ->
-            {:reply, %{type: :error, reason: reason}, state}
-
-          lines ->
-            {:reply, lines, state}
-          end
-
-      _ ->
-        {:reply, :error, state}
-    end
-  end
-
-  @impl true
-  def handle_call("connect", target, state = %{identity: :user}) do
-    case Classroom.ActiveWhiteboard.Registry.whereis_name({:whiteboard, target}) do
+  def handle_call("connect", target, state = %{identity: :user, at: {owner, class_name}}) do
+    case Classroom.ActiveGroupWhiteboard.Registry.whereis_name({:group_whiteboard, owner, class_name, target}) do
       :undefined ->
         {:reply, %{type: :error, reason: :pending}, state}
 
       _pid ->
-        case Classroom.Whiteboard.connect(target) do
+        case Classroom.GroupWhiteboard.connect(owner, class_name, target) do
           [:reject, reason] ->
             {:reply, %{type: :error, reason: reason}, state}
 
@@ -107,7 +107,7 @@ defmodule Classroom.Server.Whiteboard do
 
   @impl true
   def handle_call(msg_type, _params, state) do
-    Logger.info("Whiteboard server received invalid CALL message, msg_type: #{msg_type}")
+    Logger.info("Group Whiteboard server received invalid CALL message, msg_type: #{msg_type}")
     {:reply, %{type: :unexpected}, state} # use stop in production
   end
 

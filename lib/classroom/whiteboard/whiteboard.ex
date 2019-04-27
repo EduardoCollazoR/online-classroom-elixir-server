@@ -17,9 +17,9 @@ defmodule Classroom.Whiteboard do
     GenServer.call(via_tuple(owner), {:disconnect, self()})
   end
 
-  def get_session_user(owner) do
-    GenServer.call(via_tuple(owner), :get_session_user)
-  end
+  # def get_session_user(owner) do
+  #   GenServer.call(via_tuple(owner), :get_session_user)
+  # end
 
   def draw(owner, lines) do
     GenServer.cast(via_tuple(owner), {:draw, self(), lines}) # FIX: cannot receive below
@@ -51,7 +51,7 @@ defmodule Classroom.Whiteboard do
 
       false ->
         new_state = Map.update!(state, :clients, fn clients -> List.delete(clients, pid) end)
-        send_updated_state_to_all(new_state)
+        # send_updated_state_to_all(new_state)
         {:noreply, new_state}
     end
   end
@@ -66,7 +66,7 @@ defmodule Classroom.Whiteboard do
 
       false ->
         new_state = Map.update!(state, :clients, fn clients -> List.delete(clients, pid) end)
-        send_updated_state_to_all(new_state)
+        # send_updated_state_to_all(new_state)
         {:reply, :ok, new_state}
     end
   end
@@ -82,20 +82,20 @@ defmodule Classroom.Whiteboard do
         Process.monitor(pid)
         new_state = Map.update!(state, :clients, fn clients -> [pid | clients] end)
 
-        send_updated_state_to_all(new_state)
+        # send_updated_state_to_all(new_state)
 
         {:reply, new_state.lines, new_state}
     end
   end
 
-  @impl true
-  def handle_call(:get_session_user, _from, state) do
-    {:reply,
-     state
-     |> Map.keys()
-     |> Enum.map(fn pid -> Classroom.ActiveUsers.find_user_by_pid(pid) end)
-     |> Enum.map(fn {_, user} -> user end), state}
-  end
+  # @impl true
+  # def handle_call(:get_session_user, _from, state) do
+  #   {:reply,
+  #    state
+  #    |> Map.keys()
+  #    |> Enum.map(fn pid -> Classroom.ActiveUsers.find_user_by_pid(pid) end)
+  #    |> Enum.map(fn {_, user} -> user end), state}
+  # end
 
   @impl true
   # draw function for owner
@@ -124,37 +124,9 @@ defmodule Classroom.Whiteboard do
 
   # functions
 
-  defp send_updated_state_to_all(_state) do
-    # state |> Map.keys() |> Enum.map(fn pid -> send(pid, :get_session_user) end)
-  end
+  # defp send_updated_state_to_all(_state) do
+  #   # state |> Map.keys() |> Enum.map(fn pid -> send(pid, :get_session_user) end)
+  # end
 
 end
 
-# def init(_args) do
-#   {:ok, _} = :dets.open_file(__MODULE__, file: 'drawer.dets')
-#   {:ok, nil}
-# end
-
-# def handle_call({:check_password, username, password}, _from, nil) do
-#   case :dets.lookup(__MODULE__, username) do
-#     [{_, ^password}] ->
-#       {:reply, true, nil}
-
-#     [{_, _wrong_password}] ->
-#       {:reply, false, nil}
-
-#     [] ->
-#       {:reply, false, nil}
-#   end
-# end
-
-# def handle_call({:register, username, password}, _from, nil) do
-#   case :dets.lookup(__MODULE__, username) do
-#     [] ->
-#       :ok = :dets.insert(__MODULE__, {username, password})
-#       {:reply, :ok, nil}
-
-#     [_record] ->
-#       {:reply, :error, nil}
-#   end
-# end
