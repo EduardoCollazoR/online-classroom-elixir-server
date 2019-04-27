@@ -6,8 +6,13 @@ defmodule Classroom.Server.ClassStatus do
   # Clients at the same classroom receive these events
 
   @impl true
-  def handle_info(:group_change_event, json = %{group: group, members: member}, state = %{identity: :user}) do
+  def handle_info(:group_change_event, json = %{group: _group, members: _member}, state = %{identity: :user}) do
     {:event, :group_status_change, json, state}
+  end
+
+  @impl true
+  def handle_info(:webcam_permission_changed_event, permission = %{video: _camera, audio: _mic}, state = %{identity: :user}) do
+    {:event, :webcam_permission_changed, permission, state}
   end
 
   @impl true
@@ -30,8 +35,16 @@ defmodule Classroom.Server.ClassStatus do
   # end
 
   @impl true
-  def handle_cast(msg_type, _params, state = %{at: {owner, class_name}}) do
-    Logger.info("ClassStatus service received invalid CAST message, msg_type: #{msg_type} #{"inspect state"}")
+  def handle_cast("change_webcam_permission", %{"user" => user, "webcamPermission" => webcamPermission}, state = %{at: {owner, class_name}}) do
+    :ok = Classroom.Class.change_webcam_permission(owner, class_name, user, webcamPermission)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast(msg_type, params, state = %{at: {_owner, _class_name}}) do
+    Logger.info("ClassStatus service received invalid CAST message, msg_type:
+      #{msg_type} #{"inspect state"}, params: #{inspect params}"
+    )
     {:noreply, state} # use stop in production
   end
 

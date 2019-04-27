@@ -74,6 +74,10 @@ defmodule Classroom.Class do
     GenServer.call(via_tuple(owner, class_name), :get_groups)
   end
 
+  def change_webcam_permission(owner, class_name, user, webcamPermission) do
+    GenServer.call(via_tuple(owner, class_name), {:change_webcam_permission, user, webcamPermission})
+  end
+
   defp via_tuple(owner, class_name) do
     # {:via, module_name, term}
     {:via, Classroom.ActiveClasses.Registry, {owner, class_name}}
@@ -324,6 +328,21 @@ defmodule Classroom.Class do
       |> Enum.filter(fn each -> each != nil end)
 
     {:reply, groups, state}
+  end
+
+  # Change to cast
+  def handle_call({:change_webcam_permission, user, %{"camera" => camera, "mic" => mic}}, _from, state) do
+    {:ok, pid} = Classroom.ActiveUsers.find_pid_by_user(user)
+    send(pid, [
+      :class_status_server, [
+        :webcam_permission_changed_event,
+        %{audio: mic, video: camera}
+    ]])
+    new_state =
+      state
+      |> Kernel.update_in([:users, pid, :mic], &(&1 = mic)) # mic is unused
+      |> Kernel.update_in([:users, pid, :camera], &(&1 = camera)) # same
+    {:reply, :ok, new_state}
   end
 
   defp leave_class(pid, state) do
